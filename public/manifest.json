@@ -1,0 +1,44 @@
+{
+  "name": "Lumina Diary",
+  "short_name": "Lumina",
+  "name_localized": "Lumina Reflection Diary",
+  "description": "A beautiful, minimalist diary app with AI-powered mood analysis, creative writing prompts, and insightful reflections using Gemini.",
+  "start_url": "/",
+  "id": "/?pwa=true",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#6366f1",
+  "prefer_related_applications": false,
+  "categories": ["lifestyle", "personalization", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Diary Entry",
+      "short_name": "New Entry",
+      "description": "Quickly write down your thoughts or record a memory",
+      "url": "/?action=new-entry",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    }
+  ]
+}

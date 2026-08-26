@@ -1,0 +1,10 @@
+{
+  "name": "Lumina Diary",
+  "description": "Lumina Diary is a beautiful, minimalist sanctuary designed to elevate your daily self-reflection. Harnessing the power of advanced AI mood analysis, the application provides personalized daily affirmations, creative journal prompts, and rich sentiment graphs. Your thoughts remain fully protected, offering a quiet space to cultivate positive mindfulness and record life.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

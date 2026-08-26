@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with basic information.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Registered email of the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the profile was created."
+        }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "DiaryEntry": {
+      "title": "DiaryEntry",
+      "description": "A private memory logged by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "mood": { "type": "string" },
+        "tags": { "type": "array" },
+        "image": { "type": "string", "description": "Base64 representation of an attached snapshot." },
+        "aiSummary": { "type": "string" },
+        "aiInsights": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "date", "title", "content", "mood", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profile."
+    },
+    "/users/{userId}/entries/{entryId}": {
+      "schema": "DiaryEntry",
+      "description": "User-specific diary entries."
+    }
+  }
+}
