@@ -396,7 +396,7 @@ Thank you for supporting Lumina Diary!`;
                 <div className="flex items-center justify-between pl-1">
                   <h4 className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                     <i className="fa-solid fa-tag text-cyan-600"></i>
-                    License Duration
+                    Premium Duration
                   </h4>
                   <span className="text-[10px] text-cyan-700 font-bold bg-cyan-50 px-2 py-0.5 rounded-full border border-cyan-100">
                     {billingType === 'manual' ? 'One-Time Charge' : 'Annual Plan'}
