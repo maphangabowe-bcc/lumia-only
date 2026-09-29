@@ -99,7 +99,7 @@ class PaystackService {
 
     const fallbackKey = 
       (import.meta as any).env?.VITE_PAYSTACK_PUBLIC_KEY || 
-      'pk_test_88d5de15ac9a447c950d05bc5be41a337c950d05';
+      'pk_test_e2bb4aafc92d8c94307c13f079ac3c7d94043c11';
     this.cachedKey = fallbackKey;
     return fallbackKey;
   }

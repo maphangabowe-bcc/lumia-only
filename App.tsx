@@ -8,6 +8,7 @@ import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { collection, getDocs, doc, setDoc, deleteDoc, query } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './services/firebase';
 import { networkManager, NetworkStatus } from './services/networkService';
+import { trialService, TrialInfo } from './services/trialService';
 
 // Lazy load heavy and non-critical components to ensure fast initial page load even on slow networks
 const EntryList = lazy(() => import('./components/EntryList'));
@@ -133,9 +134,13 @@ const App: React.FC = () => {
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
-  const [isPremium, setIsPremium] = useState<boolean>(() => {
-    return localStorage.getItem('lumina_diary_premium') === 'true';
-  });
+  const [trialInfo, setTrialInfo] = useState<TrialInfo>(() => trialService.getTrialInfo());
+  const isPremium = trialInfo.hasPremiumAccess;
+
+  useEffect(() => {
+    const unsub = trialService.subscribe(setTrialInfo);
+    return () => unsub();
+  }, []);
   const [showPremiumWelcome, setShowPremiumWelcome] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -304,11 +309,9 @@ const App: React.FC = () => {
 
 
   const handleUnlockPremium = (billingType: 'manual' | 'auto' = 'manual') => {
-    setIsPremium(true);
+    trialService.markPaid(billingType);
     setShowPremiumWelcome(true);
-    localStorage.setItem('lumina_diary_premium', 'true');
-    localStorage.setItem('lumina_premium_billing_type', billingType);
-    localStorage.setItem('lumina_premium_unlocked_at', new Date().toISOString());
+    triggerToast('🎉 Lumina Premium Unlocked! Unlimited cloud diary activated.', 'success');
     const expiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     if (billingType === 'auto') {
       localStorage.setItem('lumina_premium_renews_at', expiry);
@@ -347,7 +350,7 @@ const App: React.FC = () => {
     
     if (!isPremium && isNew && entries.length >= 30) {
       setShowPremiumModal(true);
-      triggerToast('3-page limit (30 entries) reached! Upgrade to Lumina Premium to keep writing.', 'info');
+      triggerToast('60-day free trial has expired (30-entry free limit). Upgrade to Lumina Premium ($2.50) to continue writing unlimited pages.', 'info');
       return;
     }
 
@@ -416,7 +419,7 @@ const App: React.FC = () => {
   const handleNewEntry = () => {
     if (!isPremium && entries.length >= 30) {
       setShowPremiumModal(true);
-      triggerToast('3-page limit (30 entries) reached! Upgrade to Premium to write more.', 'info');
+      triggerToast('60-day free trial has expired (30-entry free limit). Upgrade to Lumina Premium ($2.50) to write more entries.', 'info');
       return;
     }
     setEditingEntry(null);
@@ -424,10 +427,20 @@ const App: React.FC = () => {
   };
 
   const handleExport = () => {
+    if (!isPremium) {
+      setShowPremiumModal(true);
+      triggerToast('Vault export & cloud backup is a Lumina Premium feature. Upgrade to unlock.', 'info');
+      return;
+    }
     setShowBackupModal(true);
   };
 
   const handleLocalExport = () => {
+    if (!isPremium) {
+      setShowPremiumModal(true);
+      triggerToast('Exporting diary data requires Lumina Premium. Upgrade to unlock.', 'info');
+      return;
+    }
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(entries));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -515,6 +528,7 @@ const App: React.FC = () => {
         onNewEntry={handleNewEntry}
         onExport={handleExport}
         isPremium={isPremium}
+        trialInfo={trialInfo}
         onUpgradeClick={() => setShowPremiumModal(true)}
         entryCount={entries.length}
         onOpenPrivacy={() => {
@@ -590,9 +604,14 @@ const App: React.FC = () => {
                 <h1 className="text-lg sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
                   <span className="md:inline hidden">Your Journey</span>
                   <span className="inline md:hidden font-extrabold tracking-tight text-indigo-600">Lumina</span>
-                  {isPremium && (
+                  {(trialInfo.isPaid || trialInfo.isTrialActive) && (
                     <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 font-extrabold text-[8px] uppercase tracking-wider inline-flex items-center gap-0.5 select-none shrink-0">
                       <i className="fa-solid fa-crown text-[7px]" /> PREMIUM
+                    </span>
+                  )}
+                  {trialInfo.isTrialExpired && (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-600 font-extrabold text-[8px] uppercase tracking-wider inline-flex items-center gap-0.5 select-none shrink-0">
+                      TRIAL EXPIRED
                     </span>
                   )}
                 </h1>
@@ -609,11 +628,23 @@ const App: React.FC = () => {
                   />
                 </div>
                 
-                {!isPremium && (
+                {trialInfo.isTrialActive && (
                   <button
                     onClick={() => setShowPremiumModal(true)}
-                    className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-sm shadow-cyan-200 active:scale-95 cursor-pointer shrink-0"
-                    title="Upgrade to Lumina Pro via Paystack ($2.50)"
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+                    title="All features unlocked! Upgrade anytime for $2.50 to keep forever"
+                  >
+                    <i className="fa-solid fa-crown text-[10px] text-amber-500"></i>
+                    <span className="hidden sm:inline">Keep Pro</span>
+                    <span className="font-mono font-bold">$2.50</span>
+                  </button>
+                )}
+
+                {trialInfo.isTrialExpired && (
+                  <button
+                    onClick={() => setShowPremiumModal(true)}
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-sm shadow-cyan-200 active:scale-95 cursor-pointer shrink-0 animate-pulse"
+                    title="Trial Ended - Upgrade to Lumina Pro via Paystack ($2.50)"
                   >
                     <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
                       <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
@@ -1054,6 +1085,11 @@ const App: React.FC = () => {
             entries={entries}
             onLocalExport={handleLocalExport}
             onLocalImport={handleImport}
+            isPremium={isPremium}
+            onUpgradeClick={() => {
+              setShowBackupModal(false);
+              setShowPremiumModal(true);
+            }}
           />
         </Suspense>
       )}
@@ -1071,6 +1107,7 @@ const App: React.FC = () => {
           triggerToast={triggerToast}
           onNavigate={navigate}
           isPremium={isPremium}
+          trialInfo={trialInfo}
           onOpenPremium={() => setShowPremiumModal(true)}
         />
       )}
@@ -1083,6 +1120,7 @@ const App: React.FC = () => {
             onUnlock={handleUnlockPremium}
             entryCount={entries.length}
             userEmail={currentUser?.email || ''}
+            trialInfo={trialInfo}
           />
         </Suspense>
       )}

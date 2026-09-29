@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { updatePassword } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { networkManager, NetworkStatus } from '../services/networkService';
+import { trialService, TrialInfo } from '../services/trialService';
 
 interface PrivacySettingsModalProps {
   onClose: () => void;
@@ -11,6 +12,7 @@ interface PrivacySettingsModalProps {
   defaultTab?: 'security' | 'policy' | 'network';
   onNavigate?: (path: string) => void;
   isPremium?: boolean;
+  trialInfo?: TrialInfo;
   onOpenPremium?: () => void;
 }
 
@@ -21,9 +23,11 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
   defaultTab = 'security',
   onNavigate,
   isPremium = false,
+  trialInfo,
   onOpenPremium
 }) => {
   const [activeTab, setActiveTab] = useState<'security' | 'policy' | 'network'>(defaultTab);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -307,46 +311,110 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
 
               {/* Membership & Subscription Status */}
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">
-                      <i className={`fa-solid ${isPremium ? 'fa-crown text-amber-500' : 'fa-gem'}`}></i>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs shrink-0 mt-0.5">
+                      <i className={`fa-solid ${trialInfo?.isPaid ? 'fa-crown text-amber-500' : (trialInfo?.isTrialActive ? 'fa-gift text-indigo-600' : 'fa-hourglass-end text-rose-500')}`}></i>
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-slate-800">
-                        {isPremium ? 'Lumina Premium Active' : 'Free Diary Tier'}
+                        {trialInfo?.isPaid 
+                          ? 'Lumina Premium Active' 
+                          : (trialInfo?.isCancelled
+                              ? 'Premium Membership Cancelled'
+                              : (trialInfo?.isTrialActive 
+                                  ? 'Free Trial Active' 
+                                  : 'Free Trial Ended'))}
                       </h4>
-                      <p className="text-[10px] text-slate-400 font-medium">
-                        {isPremium 
-                          ? (currentBillingType === 'auto' ? 'Auto-Billing Subscription ($2.50/yr)' : 'Manual Renewal Pass (1-Year)')
-                          : 'Standard local storage (30 entries)'}
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        {trialInfo?.isPaid 
+                          ? (currentBillingType === 'auto' ? 'Auto-Billing Subscription ($2.50/yr)' : 'Permanent License Pass ($2.50)')
+                          : (trialInfo?.isCancelled
+                              ? 'Subscription cancelled. Premium features are locked until you upgrade.'
+                              : (trialInfo?.isTrialActive 
+                                  ? 'Full access to all premium features enabled' 
+                                  : 'Trial concluded. Upgrade to restore premium features.'))}
                       </p>
                     </div>
                   </div>
-                  {isPremium ? (
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full uppercase">
-                      Active
+                  {trialInfo?.isPaid ? (
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full uppercase shrink-0">
+                      Paid Pro
+                    </span>
+                  ) : trialInfo?.isCancelled ? (
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-black rounded-full uppercase shrink-0">
+                      Cancelled
+                    </span>
+                  ) : trialInfo?.isTrialActive ? (
+                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-full uppercase shrink-0">
+                      Trial Active
                     </span>
                   ) : (
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-black rounded-full uppercase shrink-0">
+                      Expired
+                    </span>
+                  )}
+                </div>
+
+                {/* Upgrade prompt if not paid */}
+                {!trialInfo?.isPaid && (
+                  <div className="pt-2 border-t border-slate-200/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <div className="text-[10px] text-slate-500 leading-tight">
+                      {trialInfo?.isTrialActive 
+                        ? 'Want to keep premium permanently? Lock it in anytime.' 
+                        : 'Upgrade now to restore unlimited pages, AI insights, and backups.'}
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
                         onClose();
                         if (onOpenPremium) onOpenPremium();
                       }}
-                      className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                      className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                     >
                       <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none">
                         <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
                         <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
                         <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
                       </svg>
-                      <span>Paystack $2.50</span>
+                      <span>{trialInfo?.isTrialActive ? 'Keep Premium $2.50' : 'Upgrade Now $2.50'}</span>
                     </button>
-                  )}
+                  </div>
+                )}
+
+                {/* Testing & Verification Controls for Trial Simulation */}
+                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400 font-medium">Trial Testing:</span>
+                  <div className="flex items-center gap-2">
+                    {trialInfo?.isTrialActive ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          trialService.simulateExpired();
+                          triggerToast('Simulated trial expiration. Premium features locked.', 'info');
+                        }}
+                        className="text-rose-600 hover:text-rose-700 font-bold underline cursor-pointer"
+                        title="Simulate what happens when the free trial period expires"
+                      >
+                        Simulate Expired Trial
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          trialService.resetTrial();
+                          triggerToast('Free trial restored. All premium features unlocked!', 'success');
+                        }}
+                        className="text-indigo-600 hover:text-indigo-700 font-bold underline cursor-pointer"
+                        title="Reset free trial to active"
+                      >
+                        Reset Free Trial
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {isPremium && (
+                {trialInfo?.isPaid && (
                   <div className="pt-2.5 border-t border-slate-200/60 space-y-2">
                     {localStorage.getItem('lumina_premium_license_key') && (
                       <div className="flex items-center justify-between text-[10px] bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/60 font-mono">
@@ -366,28 +434,116 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                         <span className="text-slate-700 font-bold truncate max-w-[150px]">{localStorage.getItem('lumina_paystack_ref')}</span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 text-[10px]">
-                        Mode: <strong className="text-slate-700">{currentBillingType === 'auto' ? 'Auto-Renew' : 'Manual Renew'}</strong>
-                      </span>
+                    {/* Billing Preference Selector (Auto-Billed Each Year vs Pay Manually) */}
+                    <div className="pt-1.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-500 font-bold uppercase tracking-wider">
+                          Billing Preference:
+                        </span>
+                        <span className="font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-full border border-cyan-100">
+                          {currentBillingType === 'auto' ? 'Auto-Billed Each Year' : 'Pay Manually'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrentBillingType('auto');
+                            localStorage.setItem('lumina_premium_billing_type', 'auto');
+                            triggerToast('Switched to Auto-Billing ($2.50/year auto-renew).', 'info');
+                          }}
+                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            currentBillingType === 'auto'
+                              ? 'border-cyan-600 bg-cyan-50/50 ring-1 ring-cyan-500/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black text-slate-800">Auto-Billed Yearly</span>
+                            {currentBillingType === 'auto' && (
+                              <i className="fa-solid fa-check text-[9px] text-cyan-600" />
+                            )}
+                          </div>
+                          <span className="text-[9px] text-slate-400 leading-tight mt-0.5">
+                            $2.50 auto-renews annually.
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrentBillingType('manual');
+                            localStorage.setItem('lumina_premium_billing_type', 'manual');
+                            triggerToast('Switched to Manual Renewal (no recurring auto-charges).', 'info');
+                          }}
+                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            currentBillingType === 'manual'
+                              ? 'border-cyan-600 bg-cyan-50/50 ring-1 ring-cyan-500/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black text-slate-800">Pay Manually</span>
+                            {currentBillingType === 'manual' && (
+                              <i className="fa-solid fa-check text-[9px] text-cyan-600" />
+                            )}
+                          </div>
+                          <span className="text-[9px] text-slate-400 leading-tight mt-0.5">
+                            One-time pay. Never auto-charged.
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Easy Subscription Cancellation */}
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500">Subscription Status:</span>
                       <button
                         type="button"
-                        onClick={() => {
-                          const nextMode = currentBillingType === 'auto' ? 'manual' : 'auto';
-                          setCurrentBillingType(nextMode);
-                          localStorage.setItem('lumina_premium_billing_type', nextMode);
-                          triggerToast(
-                            nextMode === 'auto' 
-                              ? 'Switched to Auto-Billing ($2.50/year auto-renew).' 
-                              : 'Switched to Manual Renewal (no recurring charges).', 
-                            'info'
-                          );
-                        }}
-                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                        onClick={() => setShowCancelConfirm(true)}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer transition-colors"
                       >
-                        {currentBillingType === 'auto' ? 'Switch to Manual Renewal' : 'Enable Auto-Billing'}
+                        <i className="fa-solid fa-ban text-[9px]"></i>
+                        <span>Cancel Subscription</span>
                       </button>
                     </div>
+
+                    {showCancelConfirm && (
+                      <div className="mt-2.5 p-3.5 bg-rose-50/90 border border-rose-200/90 rounded-2xl space-y-2.5 animate-in fade-in duration-200">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5 text-xs">
+                            <i className="fa-solid fa-triangle-exclamation"></i>
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-black text-rose-950">Cancel Lumina Premium?</h5>
+                            <p className="text-[10px] text-rose-800/90 mt-0.5 leading-relaxed">
+                              Cancelling will immediately lock all premium features (unlimited entries beyond 30, AI weekly reflections, morning intent alerts, and cloud backup). All your existing saved entries remain 100% safe.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              trialService.cancelPremium();
+                              setShowCancelConfirm(false);
+                              triggerToast('Lumina Premium cancelled. Premium features are now locked.', 'info');
+                            }}
+                            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                          >
+                            Confirm Cancellation
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowCancelConfirm(false)}
+                            className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold rounded-xl transition-all cursor-pointer"
+                          >
+                            Keep Premium
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -89,7 +89,7 @@ const WeeklyInsight: React.FC<WeeklyInsightProps> = ({ entries, isPremium, onUpg
           </div>
         )}
 
-        {insight && (
+        {insight && isPremium && (
           <div className="animate-in fade-in zoom-in duration-500">
             <div className="prose prose-invert max-w-none text-indigo-50 font-serif leading-relaxed italic mb-6">
               {insight.split('\n').map((para, i) => <p key={i} className="mb-4">{para}</p>)}

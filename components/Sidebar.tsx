@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { TrialInfo } from '../services/trialService';
 
 interface SidebarProps {
   activeView: 'list' | 'editor' | 'stats' | 'share';
@@ -7,6 +8,7 @@ interface SidebarProps {
   onNewEntry: () => void;
   onExport: () => void;
   isPremium?: boolean;
+  trialInfo?: TrialInfo;
   onUpgradeClick?: () => void;
   entryCount?: number;
   onOpenPrivacy: () => void;
@@ -22,6 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNewEntry, 
   onExport,
   isPremium = false,
+  trialInfo,
   onUpgradeClick = () => {},
   entryCount = 0,
   onOpenPrivacy,
@@ -227,8 +230,66 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer / Account card */}
       <div className="mt-auto pt-6 border-t border-slate-100 bg-white shrink-0">
-        {/* Card to Upgrade */}
-        {!isPremium && (
+        {/* Paid Active Card */}
+        {trialInfo?.isPaid ? (
+          <div className="bg-gradient-to-tr from-amber-500/10 to-indigo-500/5 p-3.5 rounded-2xl border border-amber-500/20 mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600">
+                <i className="fa-solid fa-crown text-xs" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-slate-800">Lumina Premium</span>
+                <span className="text-[10px] text-slate-500 font-medium">Active Member</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenPrivacy}
+              className="text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white border border-slate-200/80 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+              title="Manage or cancel membership in Settings"
+            >
+              Manage
+            </button>
+          </div>
+        ) : trialInfo?.isTrialActive ? (
+          /* Active Trial Card without expiration date or days remaining */
+          <div className="bg-gradient-to-tr from-indigo-950 via-slate-900 to-cyan-950 p-4 rounded-3xl border border-indigo-700/40 shadow-lg mb-4 flex flex-col gap-2.5">
+            <div className="flex items-start gap-2.5 text-white">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border bg-indigo-900/60 border-indigo-500/50 text-indigo-300">
+                <i className="fa-solid fa-crown text-xs" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black tracking-tight text-white flex items-center gap-1">
+                    Premium Active
+                  </h4>
+                  <span className="text-[9px] font-black text-emerald-300 bg-emerald-950/70 border border-emerald-700/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Full Access
+                  </span>
+                </div>
+                <p className="text-[10px] text-indigo-100/70 mt-1 leading-normal">
+                  All premium features unlocked. Upgrade anytime to keep premium permanently for <strong>$2.50</strong>.
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => {
+                onUpgradeClick();
+                if (onCloseMobile) onCloseMobile();
+              }}
+              className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-cyan-900/40 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer mt-0.5"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+              </svg>
+              <span>Keep Premium ($2.50)</span>
+            </button>
+          </div>
+        ) : (
+          /* Trial Expired / Cancelled Card */
           <div className="bg-gradient-to-tr from-slate-950 via-slate-900 to-cyan-950 p-4 rounded-3xl border border-cyan-800/30 shadow-lg mb-4 flex flex-col gap-2.5">
             <div className="flex items-start gap-2.5 text-white">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border bg-cyan-900/40 border-cyan-700/50 text-cyan-300">
@@ -237,14 +298,16 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black tracking-tight text-white">
-                    Unlock Premium
+                    {trialInfo?.isCancelled ? 'Membership Cancelled' : 'Trial Ended'}
                   </h4>
-                  <span className="text-[9px] font-black text-cyan-300 bg-cyan-900/50 border border-cyan-700/60 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                    Paystack
+                  <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-700/60 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                    {trialInfo?.isCancelled ? 'Cancelled' : 'Upgrade Needed'}
                   </span>
                 </div>
                 <p className="text-[10px] text-cyan-100/70 mt-0.5 leading-normal">
-                  Unlimited pages, auto-sync & insights for only <strong>$2.50</strong>.
+                  {trialInfo?.isCancelled
+                    ? 'Premium features are locked. Reactivate anytime for only $2.50.'
+                    : 'Your trial has concluded. Restore unlimited pages, sync & insights for only $2.50.'}
                 </p>
               </div>
             </div>
@@ -261,20 +324,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
                 <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
               </svg>
-              <span>Pay $2.50 with Paystack</span>
+              <span>{trialInfo?.isCancelled ? 'Reactivate ($2.50 via Paystack)' : 'Pay $2.50 with Paystack'}</span>
             </button>
-          </div>
-        )}
-
-        {isPremium && (
-          <div className="bg-gradient-to-tr from-amber-500/10 to-indigo-500/5 p-3.5 rounded-2xl border border-amber-500/20 mb-4 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600">
-              <i className="fa-solid fa-crown text-xs" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-slate-800">Lumina Premium</span>
-              <span className="text-[10px] text-slate-500 font-medium">Lifetime Access</span>
-            </div>
           </div>
         )}
 

@@ -16,9 +16,19 @@ interface BackupModalProps {
   entries: DiaryEntry[];
   onLocalExport: () => void;
   onLocalImport: (entries: DiaryEntry[]) => void;
+  isPremium?: boolean;
+  onUpgradeClick?: () => void;
 }
 
-const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, entries, onLocalExport, onLocalImport }) => {
+const BackupModal: React.FC<BackupModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  entries, 
+  onLocalExport, 
+  onLocalImport,
+  isPremium = true,
+  onUpgradeClick = () => {}
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -178,6 +188,61 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, entries, onL
       setStatus('error');
     }
   };
+
+  if (!isOpen) return null;
+
+  if (!isPremium) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-4 border border-slate-100 relative">
+          <button 
+            onClick={onClose}
+            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer"
+          >
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+          
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center text-2xl mx-auto shadow-sm">
+            <i className="fa-solid fa-lock"></i>
+          </div>
+
+          <div className="space-y-1">
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 font-extrabold text-[9px] uppercase tracking-wider inline-flex items-center gap-1">
+              <i className="fa-solid fa-crown text-[8px]" /> Premium Feature
+            </span>
+            <h3 className="text-xl font-black text-slate-900 tracking-tight">
+              Vault & Cloud Backup Locked
+            </h3>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+            Your free trial has ended. Backing up to Google Drive and exporting diary data requires Lumina Premium ($2.50).
+          </p>
+
+          <div className="pt-2 space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onUpgradeClick();
+              }}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md shadow-cyan-100 flex items-center justify-center gap-2 cursor-pointer transition-all"
+            >
+              <i className="fa-solid fa-crown text-amber-300"></i>
+              <span>Unlock Premium ($2.50 via Paystack)</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2 text-xs text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">

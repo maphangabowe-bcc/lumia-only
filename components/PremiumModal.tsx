@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { paystackService } from '../services/paystackService';
+import { trialService, TrialInfo } from '../services/trialService';
 
 // Paystack global type definition
 declare global {
@@ -29,6 +30,7 @@ interface PremiumModalProps {
   onUnlock: (billingType: 'manual' | 'auto') => void;
   entryCount: number;
   userEmail?: string;
+  trialInfo?: TrialInfo;
 }
 
 type CurrencyCode = 'USD' | 'ZAR' | 'NGN' | 'KES' | 'GHS';
@@ -55,7 +57,8 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   onClose, 
   onUnlock, 
   entryCount,
-  userEmail = ''
+  userEmail = '',
+  trialInfo
 }) => {
   const [step, setStep] = useState<'info' | 'payment' | 'success'>('info');
   const [billingType, setBillingType] = useState<'manual' | 'auto'>('manual');
@@ -254,6 +257,96 @@ Thank you for supporting Lumina Diary!`;
 
             {/* Scrollable Content Body */}
             <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5">
+              {/* Paid Status & Cancel Option */}
+              {trialInfo && trialInfo.isPaid && (
+                <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 flex items-start justify-between gap-3 shadow-xs">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
+                      <i className="fa-solid fa-crown text-sm"></i>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-emerald-950">Lumina Premium is Active</h4>
+                      <p className="text-[11px] text-emerald-800/80 mt-0.5">You currently have full unlimited access across all features.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      trialService.cancelPremium();
+                      onClose();
+                    }}
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-white border border-rose-200 px-2.5 py-1.5 rounded-xl transition-all hover:bg-rose-50 cursor-pointer shrink-0"
+                  >
+                    Cancel Membership
+                  </button>
+                </div>
+              )}
+
+              {/* Cancelled Banner */}
+              {trialInfo && trialInfo.isCancelled && !trialInfo.isPaid && (
+                <div className="bg-rose-50/90 border border-rose-200/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5 border border-rose-200">
+                    <i className="fa-solid fa-ban text-sm"></i>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <h4 className="text-xs font-black text-rose-950">
+                        Membership Cancelled
+                      </h4>
+                      <span className="text-[10px] font-black text-rose-700 bg-rose-100 border border-rose-300/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Reactivation Needed
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-rose-900/80 mt-1 leading-relaxed">
+                      Your premium membership was cancelled. Premium features are locked. Reactivate anytime for <strong>$2.50</strong> with Paystack to unlock unlimited entries, AI insights, and vault sync.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Trial Status Banner */}
+              {trialInfo && !trialInfo.isCancelled && trialInfo.isTrialActive && (
+                <div className="bg-indigo-50/90 border border-indigo-200/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5 border border-indigo-200">
+                    <i className="fa-solid fa-gift text-sm"></i>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                        <span>Free Trial Active</span>
+                      </h4>
+                      <span className="text-[10px] font-black text-indigo-700 bg-indigo-100 border border-indigo-300/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Full Access
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-indigo-800/80 mt-1 leading-relaxed">
+                      You currently have <strong>full, unrestricted access</strong> to all premium features! Upgrade anytime for just <strong>$2.50</strong> to lock in permanent access after your trial.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {trialInfo && !trialInfo.isCancelled && trialInfo.isTrialExpired && (
+                <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 border border-amber-200">
+                    <i className="fa-solid fa-hourglass-end text-sm"></i>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <h4 className="text-xs font-black text-amber-950">
+                        Free Trial Ended
+                      </h4>
+                      <span className="text-[10px] font-black text-rose-700 bg-rose-100 border border-rose-300/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Upgrade Required
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-900/80 mt-1 leading-relaxed">
+                      Your free trial period has ended. All your saved reflections and entries remain completely safe! Upgrade for <strong>$2.50</strong> with Paystack to restore unlimited entries, AI insights, and backups.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Digital Inclusions */}
               <div className="space-y-2.5 sm:space-y-3">
                 <div className="flex items-center justify-between pl-1">
@@ -534,6 +627,64 @@ Thank you for supporting Lumina Diary!`;
                       {activeCurrency.symbol}{activeCurrency.amount} {activeCurrency.code}
                     </span>
                   </div>
+                </div>
+              </div>
+
+              {/* Billing Cycle Preference (Auto-billed yearly vs Pay manually) */}
+              <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <i className="fa-solid fa-repeat text-cyan-600"></i>
+                    Billing Preference
+                  </span>
+                  <span className="text-[10px] font-bold text-cyan-700 bg-cyan-100/60 px-2 py-0.5 rounded-full">
+                    {billingType === 'auto' ? 'Auto-Billed Yearly' : 'Pay Manually'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBillingType('auto')}
+                    className={`py-2.5 px-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      billingType === 'auto'
+                        ? 'border-cyan-600 bg-white ring-1 ring-cyan-500/30 shadow-xs'
+                        : 'border-slate-200/90 hover:border-slate-300 bg-slate-100/60 text-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 flex items-center gap-1">
+                        Auto-Billed
+                      </span>
+                      {billingType === 'auto' && (
+                        <i className="fa-solid fa-check text-[10px] text-cyan-600" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500 leading-tight mt-1">
+                      Auto-renews annually ($2.50/yr). Cancel anytime in 1 click.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBillingType('manual')}
+                    className={`py-2.5 px-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      billingType === 'manual'
+                        ? 'border-cyan-600 bg-white ring-1 ring-cyan-500/30 shadow-xs'
+                        : 'border-slate-200/90 hover:border-slate-300 bg-slate-100/60 text-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 flex items-center gap-1">
+                        Pay Manually
+                      </span>
+                      {billingType === 'manual' && (
+                        <i className="fa-solid fa-check text-[10px] text-cyan-600" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500 leading-tight mt-1">
+                      One-time payment for 365 days. Never auto-charged.
+                    </span>
+                  </button>
                 </div>
               </div>
 
