@@ -229,17 +229,22 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="mt-auto pt-6 border-t border-slate-100 bg-white shrink-0">
         {/* Card to Upgrade */}
         {!isPremium && (
-          <div className="bg-gradient-to-tr from-slate-900 to-indigo-950 p-4 rounded-3xl border border-indigo-950/20 shadow-md mb-4 flex flex-col gap-2.5">
+          <div className="bg-gradient-to-tr from-slate-950 via-slate-900 to-cyan-950 p-4 rounded-3xl border border-cyan-800/30 shadow-lg mb-4 flex flex-col gap-2.5">
             <div className="flex items-start gap-2.5 text-white">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border bg-slate-800 border-slate-700 text-amber-400">
-                <i className="fa-solid fa-crown text-[11px]" />
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border bg-cyan-900/40 border-cyan-700/50 text-cyan-300">
+                <i className="fa-solid fa-crown text-xs" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="text-xs font-bold tracking-tight text-white">
-                  Unlock Premium
-                </h4>
-                <p className="text-[10px] text-indigo-200/80 mt-0.5 leading-normal">
-                  Unlimited journal pages, cloud backups, and custom sharing.
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black tracking-tight text-white">
+                    Unlock Premium
+                  </h4>
+                  <span className="text-[9px] font-black text-cyan-300 bg-cyan-900/50 border border-cyan-700/60 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                    Paystack
+                  </span>
+                </div>
+                <p className="text-[10px] text-cyan-100/70 mt-0.5 leading-normal">
+                  Unlimited pages, auto-sync & insights for only <strong>$2.50</strong>.
                 </p>
               </div>
             </div>
@@ -249,9 +254,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onUpgradeClick();
                 if (onCloseMobile) onCloseMobile();
               }}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 transition-all font-bold py-2 px-3 rounded-xl text-xs text-white shadow-md flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+              className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-cyan-900/40 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
             >
-              Upgrade to Premium
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+              </svg>
+              <span>Pay $2.50 with Paystack</span>
             </button>
           </div>
         )}

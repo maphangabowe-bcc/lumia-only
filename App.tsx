@@ -609,6 +609,21 @@ const App: React.FC = () => {
                   />
                 </div>
                 
+                {!isPremium && (
+                  <button
+                    onClick={() => setShowPremiumModal(true)}
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-sm shadow-cyan-200 active:scale-95 cursor-pointer shrink-0"
+                    title="Upgrade to Lumina Pro via Paystack ($2.50)"
+                  >
+                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
+                      <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                      <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                      <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                    </svg>
+                    <span>Upgrade <span className="hidden sm:inline font-mono font-bold">$2.50</span></span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setShowInviteModal(true)}
                   className="px-2.5 sm:px-3 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
@@ -1067,6 +1082,7 @@ const App: React.FC = () => {
             onClose={() => setShowPremiumModal(false)}
             onUnlock={handleUnlockPremium}
             entryCount={entries.length}
+            userEmail={currentUser?.email || ''}
           />
         </Suspense>
       )}

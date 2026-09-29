@@ -35,8 +35,17 @@ export const InviteModal: React.FC<InviteModalProps> = ({
   currentUser,
   triggerToast
 }) => {
-  const [selectedTemplate, setSelectedTemplate] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(0);
+  const [customMessage, setCustomMessage] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('lumina_custom_invite_msg');
+      return saved !== null ? saved : TEMPLATES[0].message;
+    } catch {
+      return TEMPLATES[0].message;
+    }
+  });
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedFull, setCopiedFull] = useState(false);
   const [activeTab, setActiveTab] = useState<'link' | 'qr' | 'milestones'>('link');
   const [invitedCount, setInvitedCount] = useState<number>(() => {
     try {
@@ -53,7 +62,33 @@ export const InviteModal: React.FC<InviteModalProps> = ({
   
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://luminadiary.app';
   const inviteUrl = `${baseUrl}?ref=${referralCode}`;
-  const fullShareText = `${TEMPLATES[selectedTemplate].message}${inviteUrl}`;
+  
+  const trimmedMessage = customMessage.trim();
+  const fullShareText = trimmedMessage 
+    ? `${trimmedMessage} ${inviteUrl}`
+    : inviteUrl;
+
+  const handleMessageChange = (newMsg: string) => {
+    setCustomMessage(newMsg);
+    try {
+      localStorage.setItem('lumina_custom_invite_msg', newMsg);
+    } catch (e) {
+      console.warn('Could not save custom message', e);
+    }
+  };
+
+  const handleSelectTemplate = (idx: number) => {
+    setSelectedTemplate(idx);
+    const tmplMsg = TEMPLATES[idx].message;
+    handleMessageChange(tmplMsg);
+  };
+
+  const handleResetToTemplate = () => {
+    const idx = selectedTemplate !== null ? selectedTemplate : 0;
+    const defaultMsg = TEMPLATES[idx].message;
+    handleMessageChange(defaultMsg);
+    triggerToast('Reset message to template default', 'info');
+  };
 
   const recordShareAction = () => {
     const nextCount = invitedCount + 1;
@@ -65,27 +100,44 @@ export const InviteModal: React.FC<InviteModalProps> = ({
     }
   };
 
+  const copyTextToClipboard = async (text: string) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+  };
+
   const handleCopyLink = async () => {
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(inviteUrl);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = inviteUrl;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-      setCopied(true);
+      await copyTextToClipboard(inviteUrl);
+      setCopiedLink(true);
       recordShareAction();
-      triggerToast('🎉 Invite link copied to clipboard! Share it with your friends.', 'success');
-      setTimeout(() => setCopied(false), 2500);
+      triggerToast('🎉 Invite link copied to clipboard!', 'success');
+      setTimeout(() => setCopiedLink(false), 2500);
     } catch (err) {
       console.error('Failed to copy link:', err);
       triggerToast('Could not copy link. Please manually copy the URL.', 'error');
+    }
+  };
+
+  const handleCopyFullMessage = async () => {
+    try {
+      await copyTextToClipboard(fullShareText);
+      setCopiedFull(true);
+      recordShareAction();
+      triggerToast('📋 Full invitation message & link copied!', 'success');
+      setTimeout(() => setCopiedFull(false), 2500);
+    } catch (err) {
+      console.error('Failed to copy message:', err);
+      triggerToast('Could not copy text. Please try again.', 'error');
     }
   };
 
@@ -94,7 +146,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({
       try {
         await navigator.share({
           title: 'Join Lumina Diary',
-          text: TEMPLATES[selectedTemplate].message,
+          text: trimmedMessage,
           url: inviteUrl
         });
         recordShareAction();
@@ -105,7 +157,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({
         }
       }
     } else {
-      handleCopyLink();
+      handleCopyFullMessage();
     }
   };
 
@@ -123,7 +175,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({
 
   const handleShareTelegram = () => {
     recordShareAction();
-    const url = `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(TEMPLATES[selectedTemplate].message)}`;
+    const url = `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(trimmedMessage)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -242,47 +294,115 @@ export const InviteModal: React.FC<InviteModalProps> = ({
                     className="w-full bg-transparent text-slate-700 font-mono text-xs outline-none truncate"
                   />
                   <button
+                    id="copy-invite-link-btn"
                     onClick={handleCopyLink}
                     className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                      copied 
+                      copiedLink 
                         ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' 
                         : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 active:scale-95'
                     }`}
                   >
-                    <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                    <i className={`fa-solid ${copiedLink ? 'fa-check' : 'fa-copy'}`}></i>
+                    <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Message Templates Selector */}
-              <div className="space-y-2.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 pl-1">
-                  Choose Invitation Message
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {TEMPLATES.map((tmpl, idx) => (
+              {/* Editable Invitation Message Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pl-1">
+                  <label htmlFor="custom-invite-message" className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <i className="fa-solid fa-pen-to-square text-indigo-500 text-xs"></i>
+                    <span>Invitation Message</span>
+                    <span className="text-[10px] font-medium text-slate-400 normal-case">(tap to edit)</span>
+                  </label>
+                  {customMessage !== (selectedTemplate !== null ? TEMPLATES[selectedTemplate].message : TEMPLATES[0].message) && (
                     <button
-                      key={tmpl.id}
-                      onClick={() => setSelectedTemplate(idx)}
-                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
-                        selectedTemplate === idx
-                          ? 'bg-indigo-50/70 border-indigo-300 text-indigo-900 shadow-sm'
-                          : 'bg-white border-slate-100 hover:border-slate-200 text-slate-600'
-                      }`}
+                      id="reset-invite-message-btn"
+                      onClick={handleResetToTemplate}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Reset to template default"
                     >
-                      <i className={`fa-solid ${tmpl.icon} ${selectedTemplate === idx ? 'text-indigo-600' : 'text-slate-400'} text-xs`}></i>
-                      <span className="text-[11px] font-bold leading-tight truncate w-full">{tmpl.title}</span>
+                      <i className="fa-solid fa-rotate-left text-[10px]"></i>
+                      <span>Reset</span>
                     </button>
-                  ))}
+                  )}
                 </div>
 
-                {/* Message Preview */}
-                <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-xs text-slate-600 italic leading-relaxed relative">
-                  <div className="absolute top-2 right-2 text-[10px] text-slate-400 not-italic font-medium">
-                    Preview
+                {/* Template Preset Buttons */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider pl-1">
+                    Quick Templates
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {TEMPLATES.map((tmpl, idx) => {
+                      const isSelected = selectedTemplate === idx;
+                      return (
+                        <button
+                          key={tmpl.id}
+                          id={`template-btn-${tmpl.id}`}
+                          onClick={() => handleSelectTemplate(idx)}
+                          className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1 cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-50/80 border-indigo-300 text-indigo-900 shadow-sm ring-1 ring-indigo-200'
+                              : 'bg-white border-slate-200/80 hover:border-slate-300 text-slate-600 hover:bg-slate-50/60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <i className={`fa-solid ${tmpl.icon} ${isSelected ? 'text-indigo-600' : 'text-slate-400'} text-xs`}></i>
+                            {isSelected && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                            )}
+                          </div>
+                          <span className="text-[11px] font-bold leading-tight truncate w-full">{tmpl.title}</span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  "{fullShareText}"
+                </div>
+
+                {/* Message Textarea */}
+                <div className="relative bg-white border border-slate-200 rounded-2xl p-3 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
+                  <textarea
+                    id="custom-invite-message"
+                    rows={3}
+                    value={customMessage}
+                    onChange={(e) => handleMessageChange(e.target.value)}
+                    placeholder="Write your custom invitation message here..."
+                    className="w-full bg-transparent text-slate-800 text-xs leading-relaxed resize-none outline-none placeholder:text-slate-400 font-sans"
+                  />
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <i className="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
+                      Your personal link is automatically attached
+                    </span>
+                    <span className="font-mono">{customMessage.length} chars</span>
+                  </div>
+                </div>
+
+                {/* Message Preview & Quick Copy */}
+                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs space-y-2 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <i className="fa-regular fa-eye text-indigo-500"></i>
+                      Recipient View Preview
+                    </span>
+                    <button
+                      id="copy-full-invitation-btn"
+                      onClick={handleCopyFullMessage}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        copiedFull
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700 active:scale-95'
+                      }`}
+                    >
+                      <i className={`fa-solid ${copiedFull ? 'fa-check' : 'fa-copy'} text-[10px]`}></i>
+                      <span>{copiedFull ? 'Copied Message!' : 'Copy Full Message'}</span>
+                    </button>
+                  </div>
+                  <div className="text-slate-700 italic leading-relaxed text-[11px] bg-white/70 p-2.5 rounded-xl border border-slate-100 select-text">
+                    "{fullShareText}"
+                  </div>
                 </div>
               </div>
 
@@ -383,10 +503,11 @@ export const InviteModal: React.FC<InviteModalProps> = ({
               <div className="w-full bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center justify-between text-xs text-slate-600 font-mono">
                 <span className="truncate pr-2">{inviteUrl}</span>
                 <button
+                  id="copy-qr-invite-link-btn"
                   onClick={handleCopyLink}
                   className="text-indigo-600 font-bold hover:underline shrink-0 cursor-pointer"
                 >
-                  {copied ? 'Copied' : 'Copy'}
+                  {copiedLink ? 'Copied' : 'Copy'}
                 </button>
               </div>
             </div>

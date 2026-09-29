@@ -318,7 +318,7 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                       </h4>
                       <p className="text-[10px] text-slate-400 font-medium">
                         {isPremium 
-                          ? (currentBillingType === 'auto' ? 'Auto-Billing Subscription ($2.00/yr)' : 'Manual Renewal Pass (1-Year)')
+                          ? (currentBillingType === 'auto' ? 'Auto-Billing Subscription ($2.50/yr)' : 'Manual Renewal Pass (1-Year)')
                           : 'Standard local storage (30 entries)'}
                       </p>
                     </div>
@@ -334,35 +334,60 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                         onClose();
                         if (onOpenPremium) onOpenPremium();
                       }}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm cursor-pointer"
+                      className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                     >
-                      Upgrade $2.00
+                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                        <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                        <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
+                      </svg>
+                      <span>Paystack $2.50</span>
                     </button>
                   )}
                 </div>
 
                 {isPremium && (
-                  <div className="pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 text-[10px]">
-                      Mode: <strong className="text-slate-700">{currentBillingType === 'auto' ? 'Auto-Renew' : 'Manual Renew'}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextMode = currentBillingType === 'auto' ? 'manual' : 'auto';
-                        setCurrentBillingType(nextMode);
-                        localStorage.setItem('lumina_premium_billing_type', nextMode);
-                        triggerToast(
-                          nextMode === 'auto' 
-                            ? 'Switched to Auto-Billing ($2.00/year auto-renew).' 
-                            : 'Switched to Manual Renewal (no recurring charges).', 
-                          'info'
-                        );
-                      }}
-                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
-                    >
-                      {currentBillingType === 'auto' ? 'Switch to Manual Renewal' : 'Enable Auto-Billing'}
-                    </button>
+                  <div className="pt-2.5 border-t border-slate-200/60 space-y-2">
+                    {localStorage.getItem('lumina_premium_license_key') && (
+                      <div className="flex items-center justify-between text-[10px] bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/60 font-mono">
+                        <span className="text-slate-500 font-sans font-medium flex items-center gap-1">
+                          <i className="fa-solid fa-key text-[9px] text-amber-500"></i>
+                          License:
+                        </span>
+                        <span className="text-indigo-600 font-bold tracking-wider">{localStorage.getItem('lumina_premium_license_key')}</span>
+                      </div>
+                    )}
+                    {localStorage.getItem('lumina_paystack_ref') && (
+                      <div className="flex items-center justify-between text-[10px] bg-white px-2.5 py-1 rounded-xl border border-slate-200/60 font-mono">
+                        <span className="text-slate-500 font-sans font-medium flex items-center gap-1">
+                          <i className="fa-solid fa-receipt text-[9px] text-cyan-600"></i>
+                          Paystack Ref:
+                        </span>
+                        <span className="text-slate-700 font-bold truncate max-w-[150px]">{localStorage.getItem('lumina_paystack_ref')}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 text-[10px]">
+                        Mode: <strong className="text-slate-700">{currentBillingType === 'auto' ? 'Auto-Renew' : 'Manual Renew'}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextMode = currentBillingType === 'auto' ? 'manual' : 'auto';
+                          setCurrentBillingType(nextMode);
+                          localStorage.setItem('lumina_premium_billing_type', nextMode);
+                          triggerToast(
+                            nextMode === 'auto' 
+                              ? 'Switched to Auto-Billing ($2.50/year auto-renew).' 
+                              : 'Switched to Manual Renewal (no recurring charges).', 
+                            'info'
+                          );
+                        }}
+                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                      >
+                        {currentBillingType === 'auto' ? 'Switch to Manual Renewal' : 'Enable Auto-Billing'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
