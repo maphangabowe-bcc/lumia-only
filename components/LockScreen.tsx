@@ -219,7 +219,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                       onClick={handleForgotPassword}
                       className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer"
                     >
-                      Forgot Lock?
+                      Forgot / Change Password?
                     </button>
                   )}
                 </div>

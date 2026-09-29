@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { TrialInfo } from '../services/trialService';
+import { getCurrentSeasonTheme } from '../services/seasonService';
 
 interface SidebarProps {
   activeView: 'list' | 'editor' | 'stats' | 'share';
@@ -118,6 +119,22 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
       </div>
+
+      {/* Seasonal Theme Indicator Badge */}
+      {(() => {
+        const currentSeason = getCurrentSeasonTheme();
+        return (
+          <div className={`mb-6 p-3 rounded-2xl ${currentSeason.badgeBg} border ${currentSeason.cardBorder} flex items-center justify-between shrink-0`}>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-lg shrink-0">{currentSeason.emoji}</span>
+              <div className="min-w-0">
+                <div className={`text-[11px] font-black ${currentSeason.badgeText} truncate`}>{currentSeason.name}</div>
+                <div className="text-[9px] text-slate-400 font-medium truncate">{currentSeason.tagline}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* New Entry Action Button */}
       <button

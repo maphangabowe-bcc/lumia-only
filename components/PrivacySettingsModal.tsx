@@ -4,6 +4,7 @@ import { updatePassword } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { networkManager, NetworkStatus } from '../services/networkService';
 import { trialService, TrialInfo } from '../services/trialService';
+import { SEASONS, SeasonKey } from '../services/seasonService';
 
 interface PrivacySettingsModalProps {
   onClose: () => void;
@@ -26,7 +27,8 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
   trialInfo,
   onOpenPremium
 }) => {
-  const [activeTab, setActiveTab] = useState<'security' | 'policy' | 'network'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'security' | 'policy' | 'network' | 'appearance'>(defaultTab);
+  const [currentSeasonState, setCurrentSeasonState] = useState<SeasonKey>(() => (localStorage.getItem('lumina_season_theme') as SeasonKey) || 'auto');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -233,6 +235,18 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
           >
             <i className="fa-solid fa-bolt text-[10px]"></i>
             Data Saver
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('appearance')}
+            className={`flex-1 py-3 text-xs font-bold text-center border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'appearance'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <i className="fa-solid fa-seedling text-[10px]"></i>
+            Seasons
           </button>
           <button
             type="button"
@@ -700,6 +714,79 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                     <i className="fa-solid fa-circle-check text-emerald-500 text-sm"></i>
                     <span className="text-[11px] font-medium">Adaptive 2.8s API timeouts with offline inspiration generator</span>
                   </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'appearance' && (
+            <motion.div
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <div className="p-5 bg-slate-50 border border-slate-100 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800">Seasonal Theme Adaptation</h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5">App appearance automatically shifts with seasons or can be set manually</p>
+                  </div>
+                  <span className="text-xl">🌸☀️🍂❄️</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem('lumina_season_theme', 'auto');
+                      setCurrentSeasonState('auto');
+                      triggerToast('Theme set to automatically change with seasons.', 'success');
+                      window.location.reload();
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      currentSeasonState === 'auto'
+                        ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-500/20 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800">✨ Auto (Calendar Seasons)</span>
+                      {currentSeasonState === 'auto' && <i className="fa-solid fa-check text-xs text-indigo-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1">
+                      Spring, Summer, Autumn & Winter shift automatically.
+                    </span>
+                  </button>
+
+                  {(Object.keys(SEASONS) as Array<keyof typeof SEASONS>).map((key) => {
+                    const season = SEASONS[key];
+                    const isSelected = currentSeasonState === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          localStorage.setItem('lumina_season_theme', key);
+                          setCurrentSeasonState(key);
+                          triggerToast(`Switched theme to ${season.name} ${season.emoji}`, 'success');
+                          window.location.reload();
+                        }}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-500/20 shadow-xs'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-800">{season.emoji} {season.name}</span>
+                          {isSelected && <i className="fa-solid fa-check text-xs text-indigo-600" />}
+                        </div>
+                        <span className="text-[10px] text-slate-500 mt-1">
+                          {season.tagline}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>

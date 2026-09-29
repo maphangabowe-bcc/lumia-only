@@ -165,19 +165,23 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
         ref: generatedRef,
         billingType,
         onSuccess: (confirmedRef) => {
+          setIsProcessing(false);
           handleSuccessfulPayment(confirmedRef);
         },
         onCancel: () => {
           setIsProcessing(false);
+          setError('Payment was cancelled. Premium features remain locked.');
         },
         onError: (err) => {
-          console.warn('Paystack popup notice:', err);
-          handleSuccessfulPayment(generatedRef);
+          console.warn('Paystack payment failed or declined:', err);
+          setIsProcessing(false);
+          setError('Payment transaction failed or was declined. Premium access was not granted.');
         }
       });
     } catch (err) {
       console.warn('Paystack execution exception:', err);
-      handleSuccessfulPayment(generatedRef);
+      setIsProcessing(false);
+      setError('Payment gateway connection failed. Premium access was not granted.');
     }
   };
 
