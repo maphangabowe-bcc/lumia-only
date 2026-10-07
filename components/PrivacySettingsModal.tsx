@@ -439,13 +439,13 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                         <span className="text-indigo-600 font-bold tracking-wider">{localStorage.getItem('lumina_premium_license_key')}</span>
                       </div>
                     )}
-                    {localStorage.getItem('lumina_paystack_ref') && (
+                    {(localStorage.getItem('lumina_dodo_ref') || localStorage.getItem('lumina_payment_ref')) && (
                       <div className="flex items-center justify-between text-[10px] bg-white px-2.5 py-1 rounded-xl border border-slate-200/60 font-mono">
                         <span className="text-slate-500 font-sans font-medium flex items-center gap-1">
-                          <i className="fa-solid fa-receipt text-[9px] text-cyan-600"></i>
-                          Paystack Ref:
+                          <i className="fa-solid fa-receipt text-[9px] text-orange-600"></i>
+                          Dodo Ref:
                         </span>
-                        <span className="text-slate-700 font-bold truncate max-w-[150px]">{localStorage.getItem('lumina_paystack_ref')}</span>
+                        <span className="text-slate-700 font-bold truncate max-w-[150px]">{localStorage.getItem('lumina_dodo_ref') || localStorage.getItem('lumina_payment_ref')}</span>
                       </div>
                     )}
                     {/* Billing Preference Selector (Auto-Billed Each Year vs Pay Manually) */}

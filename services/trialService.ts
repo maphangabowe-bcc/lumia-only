@@ -1,7 +1,7 @@
 /**
  * 60-Day Premium Trial Management Service
  * Grants all new users full access to all premium features for 60 days.
- * After 60 days, users must upgrade via Paystack ($2.50) to keep premium features.
+ * After 60 days, users must upgrade via Dodo Payments ($2.50) to keep premium features.
  */
 
 export interface TrialInfo {
@@ -107,7 +107,7 @@ class TrialService {
   }
 
   /**
-   * Marks premium as unlocked permanently (upon Paystack payment)
+   * Marks premium as unlocked permanently (upon Dodo Payments payment)
    */
   public markPaid(billingType: 'manual' | 'auto' = 'manual'): TrialInfo {
     try {

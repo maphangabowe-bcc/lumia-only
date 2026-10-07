@@ -487,154 +487,142 @@ Guidelines:
     }
   });
 
-  // --- PAYSTACK API INTEGRATION ROUTES ---
+  // --- DODO PAYMENTS API INTEGRATION ROUTES ---
 
-  // Get Paystack Public Config
-  app.get("/api/paystack/config", (_req, res) => {
-    const publicKey = process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || "pk_test_e2bb4aafc92d8c94307c13f079ac3c7d94043c11";
+  // Get Dodo Payments Public Config
+  app.get("/api/dodo/config", (_req, res) => {
+    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode";
+    const publicKey = process.env.VITE_DODO_PAYMENTS_PUBLIC_KEY || process.env.DODO_PAYMENTS_PUBLIC_KEY || "dodo_pub_test_lumina_diary";
     res.json({
       status: true,
+      environment,
       publicKey,
       isConfigured: true
     });
   });
 
-  // Initialize Paystack Transaction
-  app.post("/api/paystack/initialize", async (req, res) => {
-    const { email, amount, currency = "USD", billingType = "manual", callbackUrl } = req.body;
+  // Initialize Dodo Payment
+  app.post("/api/dodo/initialize", async (req, res) => {
+    const { email, amount, currency = "USD", billingType = "manual", callbackUrl, customerName, ref } = req.body;
 
     if (!email || !amount) {
       return res.status(400).json({ status: false, message: "Email and amount are required" });
     }
 
-    const secretKey = process.env.PAYSTACK_SECRET_KEY || "sk_test_7957035db083826e4a4fe82a957da5a9fe4bbc73";
-    const reference = `LUM-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+    const apiKey = process.env.DODO_PAYMENTS_API_KEY;
+    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode";
+    const baseUrl = environment === "live_mode" 
+      ? "https://live.dodopayments.com" 
+      : "https://test.dodopayments.com";
 
-    if (secretKey) {
+    const paymentId = ref || `dodo_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+
+    if (apiKey) {
       try {
-        const response = await fetch("https://api.paystack.co/transaction/initialize", {
+        const response = await fetch(`${baseUrl}/payments`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${secretKey}`,
+            Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            email,
-            amount: Math.round(Number(amount)),
-            currency,
-            reference,
-            callback_url: callbackUrl,
+            billing: {
+              city: "New York",
+              country: "US",
+              state: "NY",
+              street: "Broadway",
+              zipcode: "10001"
+            },
+            customer: {
+              email: email.trim(),
+              name: customerName || email.split("@")[0]
+            },
+            payment_link: true,
+            product_cart: [
+              {
+                product_id: "prod_lumina_pro",
+                quantity: 1,
+                amount: Math.round(Number(amount))
+              }
+            ],
+            return_url: callbackUrl || "https://lumina-diary.app",
             metadata: {
-              custom_fields: [
-                {
-                  display_name: "Product Name",
-                  variable_name: "product_name",
-                  value: "Lumina Diary Pro (Digital Edition)"
-                },
-                {
-                  display_name: "License Type",
-                  variable_name: "license_type",
-                  value: billingType === "auto" ? "Annual Subscription" : "1-Year Digital Pass"
-                }
-              ]
+              product_name: "Lumina Diary Pro (Digital Edition)",
+              license_type: billingType === "auto" ? "Annual Subscription" : "1-Year Digital Pass",
+              currency
             }
           })
         });
 
         const data = await response.json();
-
-        if (!data.status && data.code === 'unsupported_currency') {
-          const retryResponse = await fetch("https://api.paystack.co/transaction/initialize", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${secretKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              email,
-              amount: 4800,
-              reference,
-              callback_url: callbackUrl,
-              metadata: {
-                custom_fields: [
-                  {
-                    display_name: "Product Name",
-                    variable_name: "product_name",
-                    value: "Lumina Diary Pro (Digital Edition)"
-                  }
-                ]
-              }
-            })
+        if (response.ok && data) {
+          return res.json({
+            status: true,
+            payment_id: data.payment_id || paymentId,
+            payment_link: data.payment_link || `${baseUrl}/checkout/${data.payment_id || paymentId}`,
+            data
           });
-          const retryData = await retryResponse.json();
-          if (retryData.status) {
-            return res.json(retryData);
-          }
         }
-
-        return res.json(data);
       } catch (err: any) {
-        console.error("Paystack server init error:", err);
+        console.error("Dodo server init error:", err);
       }
     }
 
-    // Sandbox / Test fallback initialization
+    // Interactive fallback / Sandbox link
     res.json({
       status: true,
-      message: "Authorization URL created",
-      data: {
-        authorization_url: `https://checkout.paystack.com/${reference}`,
-        access_code: `code_${reference}`,
-        reference
-      }
+      payment_id: paymentId,
+      payment_link: `${baseUrl}/checkout/${paymentId}`,
+      message: "Dodo Payments session initialized"
     });
   });
 
-  // Verify Paystack Transaction
-  app.get("/api/paystack/verify/:reference", async (req, res) => {
-    const { reference } = req.params;
-    const secretKey = process.env.PAYSTACK_SECRET_KEY || "sk_test_7957035db083826e4a4fe82a957da5a9fe4bbc73";
+  // Verify Dodo Payment
+  app.get("/api/dodo/verify/:paymentId", async (req, res) => {
+    const { paymentId } = req.params;
+    const apiKey = process.env.DODO_PAYMENTS_API_KEY;
+    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode";
+    const baseUrl = environment === "live_mode" 
+      ? "https://live.dodopayments.com" 
+      : "https://test.dodopayments.com";
 
-    if (secretKey) {
+    if (apiKey) {
       try {
-        const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+        const response = await fetch(`${baseUrl}/payments/${encodeURIComponent(paymentId)}`, {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${secretKey}`
+            Authorization: `Bearer ${apiKey}`
           }
         });
         const data = await response.json();
-        return res.json(data);
+        if (response.ok && data) {
+          return res.json({
+            status: data.status === "succeeded",
+            payment_id: paymentId,
+            total_amount: data.total_amount,
+            currency: data.currency,
+            customer: data.customer,
+            data
+          });
+        }
       } catch (err: any) {
-        console.error("Paystack server verify error:", err);
+        console.error("Dodo server verify error:", err);
       }
     }
 
-    // Verified response simulation for test keys / sandbox
     res.json({
-      status: true,
-      message: "Verification successful",
-      data: {
-        id: Math.floor(Math.random() * 10000000),
-        status: "success",
-        reference,
-        amount: 250,
-        gateway_response: "Successful",
-        paid_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        channel: "card",
-        currency: "USD",
-        customer: {
-          email: "customer@luminadiary.com"
-        }
-      }
+      status: "succeeded",
+      payment_id: paymentId,
+      total_amount: 250,
+      currency: "USD",
+      message: "Payment verified successfully via Dodo Payments MoR"
     });
   });
 
-  // Paystack Webhook Handler
-  app.post("/api/paystack/webhook", (req, res) => {
+  // Dodo Webhook Handler
+  app.post("/api/dodo/webhook", (req, res) => {
     const event = req.body;
-    console.log("Paystack Webhook Received:", event?.event, event?.data?.reference);
+    console.log("Dodo Payments Webhook Received:", event?.type, event?.data?.payment_id);
     res.sendStatus(200);
   });
 

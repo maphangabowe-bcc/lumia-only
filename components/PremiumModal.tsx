@@ -1,25 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { paystackService } from '../services/paystackService';
+import { dodoService } from '../services/dodoService';
 import { trialService, TrialInfo } from '../services/trialService';
 
-// Paystack global type definition
+// Dodo Payments global type definition
 declare global {
   interface Window {
-    PaystackPop?: {
-      setup: (options: {
-        key: string;
-        email: string;
-        amount: number;
-        currency: string;
-        ref?: string;
-        channels?: string[];
-        metadata?: Record<string, any>;
-        callback: (response: { reference: string; status?: string; message?: string; trans?: string }) => void;
-        onClose: () => void;
-      }) => {
-        openIframe: () => void;
-      };
+    DodoPayments?: {
+      openCheckout: (options: {
+        paymentId?: string;
+        paymentLink?: string;
+        onSuccess?: () => void;
+        onClose?: () => void;
+        onError?: (err: any) => void;
+      }) => void;
     };
   }
 }
@@ -65,7 +59,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paystackLoaded, setPaystackLoaded] = useState(false);
+  const [dodoLoaded, setDodoLoaded] = useState(false);
   
   // Digital delivery & receipt details
   const [receiptEmail, setReceiptEmail] = useState(userEmail || 'maphangabowe@gmail.com');
@@ -77,22 +71,11 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const [copiedLicense, setCopiedLicense] = useState(false);
   const [copiedReceipt, setCopiedReceipt] = useState(false);
 
-  // Ensure Paystack Inline JS script is loaded
+  // Ensure Dodo Payments Checkout JS SDK is loaded
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.PaystackPop) {
-      setPaystackLoaded(true);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://js.paystack.co/v1/inline.js';
-    script.async = true;
-    script.onload = () => setPaystackLoaded(true);
-    script.onerror = () => {
-      console.warn('Paystack script CDN load issue, fallback enabled.');
-      setPaystackLoaded(false);
-    };
-    document.head.appendChild(script);
+    dodoService.loadScript().then((loaded) => {
+      setDodoLoaded(loaded);
+    });
   }, []);
 
   // Generate unique license code once on success
@@ -109,7 +92,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     setIsProcessing(true);
     // Verify transaction server-side
     try {
-      await paystackService.verifyTransaction(ref);
+      await dodoService.verifyPayment(ref);
     } catch (e) {
       console.warn('Transaction verification note:', e);
     }
@@ -119,7 +102,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     setTransactionRef(ref);
     try {
       localStorage.setItem('lumina_premium_license_key', code);
-      localStorage.setItem('lumina_paystack_ref', ref);
+      localStorage.setItem('lumina_dodo_ref', ref);
     } catch (err) {
       console.warn('Could not cache license key:', err);
     }
@@ -127,8 +110,8 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     setStep('success');
   };
 
-  // Launch Paystack Inline Checkout
-  const handlePaystackCheckout = async () => {
+  // Launch Dodo Payments Checkout
+  const handleDodoCheckout = async () => {
     if (!receiptEmail || !receiptEmail.includes('@')) {
       setError('Please provide a valid delivery email address for your license receipt.');
       return;
@@ -138,32 +121,16 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     setIsProcessing(true);
 
     const activeCurrency = CURRENCIES[currency];
-    const generatedRef = `LUM-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    const generatedRef = `DODO-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-    // Retrieve active public key from service/server
-    const activeKey = await paystackService.getPublicKey();
-
-    // Initialize transaction record on server
     try {
-      await paystackService.initializeTransaction({
-        email: receiptEmail.trim(),
-        amount: activeCurrency.subunits,
-        currency: activeCurrency.code,
-        billingType,
-      });
-    } catch (e) {
-      console.warn('Server initialization notice:', e);
-    }
-
-    // Open Paystack Checkout Modal via service
-    try {
-      await paystackService.openCheckout({
-        key: activeKey,
+      await dodoService.openCheckout({
         email: receiptEmail.trim(),
         amount: activeCurrency.subunits,
         currency: activeCurrency.code,
         ref: generatedRef,
         billingType,
+        customerName: receiptEmail.split('@')[0],
         onSuccess: (confirmedRef) => {
           setIsProcessing(false);
           handleSuccessfulPayment(confirmedRef);
@@ -173,13 +140,13 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
           setError('Payment was cancelled. Premium features remain locked.');
         },
         onError: (err) => {
-          console.warn('Paystack payment failed or declined:', err);
+          console.warn('Dodo Payments failed or declined:', err);
           setIsProcessing(false);
           setError('Payment transaction failed or was declined. Premium access was not granted.');
         }
       });
     } catch (err) {
-      console.warn('Paystack execution exception:', err);
+      console.warn('Dodo Payments execution exception:', err);
       setIsProcessing(false);
       setError('Payment gateway connection failed. Premium access was not granted.');
     }
@@ -195,10 +162,10 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
 
   const handleCopyReceipt = () => {
     const cur = CURRENCIES[currency];
-    const receiptText = `LUMINA DIARY PRO - DIGITAL RECEIPT (PAYSTACK)
+    const receiptText = `LUMINA DIARY PRO - DIGITAL RECEIPT (DODO PAYMENTS)
 ------------------------------------------------
-Payment Gateway: Paystack Checkout
-Paystack Reference: ${transactionRef || 'PSTK-' + Date.now()}
+Payment Gateway: Dodo Payments (Global MoR)
+Dodo Reference: ${transactionRef || 'DODO-' + Date.now()}
 License Key: ${generatedLicense}
 Product: Lumina Diary Pro (Digital Edition)
 Plan: ${billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}
@@ -255,7 +222,7 @@ Thank you for supporting Lumina Diary!`;
                 Lumina Diary Pro Edition
               </h2>
               <p className="text-white/90 text-xs sm:text-sm mt-1 max-w-md leading-relaxed">
-                Unlock infinite diary space, mood analytics, and secure cloud sync powered by Paystack.
+                Unlock infinite diary space, mood analytics, and secure cloud sync powered by Dodo Payments.
               </p>
             </div>
 
@@ -302,7 +269,7 @@ Thank you for supporting Lumina Diary!`;
                       </span>
                     </div>
                     <p className="text-[11px] text-rose-900/80 mt-1 leading-relaxed">
-                      Your premium membership was cancelled. Premium features are locked. Reactivate anytime for <strong>$2.50</strong> with Paystack to unlock unlimited entries, AI insights, and vault sync.
+                      Your premium membership was cancelled. Premium features are locked. Reactivate anytime for <strong>$2.50</strong> with Dodo Payments to unlock unlimited entries, AI insights, and vault sync.
                     </p>
                   </div>
                 </div>
@@ -345,7 +312,7 @@ Thank you for supporting Lumina Diary!`;
                       </span>
                     </div>
                     <p className="text-[11px] text-amber-900/80 mt-1 leading-relaxed">
-                      Your free trial period has ended. All your saved reflections and entries remain completely safe! Upgrade for <strong>$2.50</strong> with Paystack to restore unlimited entries, AI insights, and backups.
+                      Your free trial period has ended. All your saved reflections and entries remain completely safe! Upgrade for <strong>$2.50</strong> with Dodo Payments to restore unlimited entries, AI insights, and backups.
                     </p>
                   </div>
                 </div>
@@ -484,16 +451,16 @@ Thank you for supporting Lumina Diary!`;
               
               <button
                 onClick={() => setStep('payment')}
-                className="px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-md shadow-cyan-100 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shrink-0"
+                className="px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-md shadow-orange-100 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shrink-0"
               >
-                <span>Continue to Paystack</span>
+                <span>Continue to Dodo Payments</span>
                 <i className="fa-solid fa-arrow-right text-[11px]"></i>
               </button>
             </div>
           </motion.div>
         )}
 
-        {/* STEP 2: PAYSTACK POWERED SECURE DIGITAL CHECKOUT */}
+        {/* STEP 2: DODO PAYMENTS POWERED SECURE DIGITAL CHECKOUT */}
         {step === 'payment' && (
           <motion.div
             key="payment"
@@ -514,9 +481,9 @@ Thank you for supporting Lumina Diary!`;
                 </button>
                 <div>
                   <h3 className="font-black text-slate-900 text-sm sm:text-base leading-tight flex items-center gap-1.5">
-                    <span>Paystack Secure Checkout</span>
+                    <span>Dodo Payments Secure Checkout</span>
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-medium">Digital Product • Zero Shipping Time</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Global Merchant of Record • 150+ Countries</p>
                 </div>
               </div>
               <button 
@@ -531,26 +498,25 @@ Thank you for supporting Lumina Diary!`;
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4">
               
-              {/* Paystack Official Gateway Header Card */}
-              <div className="bg-gradient-to-br from-[#011B33] to-[#042A4D] rounded-2xl p-4 text-white shadow-md relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
+              {/* Dodo Payments Official Gateway Header Card */}
+              <div className="bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] rounded-2xl p-4 text-white shadow-md relative overflow-hidden border border-slate-800">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-2xl pointer-events-none" />
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    {/* Official Paystack 3-bar icon emblem */}
-                    <div className="w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center shrink-0">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#00C3F7" />
-                        <rect x="3" y="10.5" width="13" height="3" rx="1.5" fill="#00C3F7" />
-                        <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#00C3F7" />
-                      </svg>
+                    {/* Dodo emblem badge */}
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 border border-orange-400/30 flex items-center justify-center shrink-0 shadow-sm text-lg">
+                      🦤
                     </div>
                     <div>
-                      <h4 className="font-black text-sm text-white tracking-wide">Paystack Payment Gateway</h4>
-                      <p className="text-[10px] text-cyan-200/80 font-medium">Cards • EFT • Mobile Money • USSD • QR</p>
+                      <h4 className="font-black text-sm text-white tracking-wide flex items-center gap-1.5">
+                        Dodo Payments
+                        <span className="text-[9px] bg-orange-500/20 text-orange-400 font-bold px-1.5 py-0.2 rounded border border-orange-500/30">MoR</span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium">Cards • Apple Pay • Google Pay • Global Wire</p>
                     </div>
                   </div>
                   <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
-                    <i className="fa-solid fa-shield-check text-[9px]"></i> PCI-DSS Level 1
+                    <i className="fa-solid fa-shield-check text-[9px]"></i> 256-Bit SSL
                   </span>
                 </div>
               </div>
@@ -561,7 +527,7 @@ Thank you for supporting Lumina Diary!`;
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     Select Currency
                   </label>
-                  <span className="text-[10px] text-slate-400">Paystack Multi-Currency</span>
+                  <span className="text-[10px] text-slate-400">Dodo Multi-Currency</span>
                 </div>
                 <div className="grid grid-cols-5 gap-1.5 p-1 bg-slate-100/80 rounded-2xl border border-slate-200/60">
                   {(Object.keys(CURRENCIES) as CurrencyCode[]).map((cKey) => {
@@ -696,14 +662,14 @@ Thank you for supporting Lumina Diary!`;
               <div className="bg-white border border-slate-200/70 rounded-2xl p-3 sm:p-3.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <i className="fa-solid fa-envelope text-cyan-600"></i>
-                    Paystack License & Receipt Recipient
+                    <i className="fa-solid fa-envelope text-orange-600"></i>
+                    Dodo License & Receipt Recipient
                   </label>
                   {!isEditingEmail ? (
                     <button
                       type="button"
                       onClick={() => setIsEditingEmail(true)}
-                      className="text-[11px] font-bold text-cyan-600 hover:text-cyan-800 cursor-pointer"
+                      className="text-[11px] font-bold text-orange-600 hover:text-orange-800 cursor-pointer"
                     >
                       Edit
                     </button>
@@ -724,7 +690,7 @@ Thank you for supporting Lumina Diary!`;
                     value={receiptEmail}
                     onChange={(e) => setReceiptEmail(e.target.value)}
                     placeholder="name@domain.com"
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 text-slate-800"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-slate-800"
                     autoFocus
                   />
                 ) : (
@@ -743,29 +709,24 @@ Thank you for supporting Lumina Diary!`;
                 </div>
               )}
 
-              {/* Paystack Primary Action Box */}
+              {/* Dodo Payments Primary Action Box */}
               <div className="space-y-3 pt-1">
                 <button
                   type="button"
-                  onClick={handlePaystackCheckout}
+                  onClick={handleDodoCheckout}
                   disabled={isProcessing}
-                  className="w-full py-3.5 px-5 bg-gradient-to-r from-[#011B33] via-[#09A5DB] to-[#011B33] hover:opacity-95 active:scale-[0.99] text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-cyan-900/20 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-75"
+                  className="w-full py-3.5 px-5 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 hover:opacity-95 active:scale-[0.99] text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-orange-900/20 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-75"
                 >
                   {isProcessing ? (
                     <>
                       <i className="fa-solid fa-spinner fa-spin text-sm"></i>
-                      <span>Opening Paystack Gateway...</span>
+                      <span>Opening Dodo Payments Gateway...</span>
                     </>
                   ) : (
                     <>
-                      {/* Paystack emblem mini */}
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#00C3F7" />
-                        <rect x="3" y="10.5" width="13" height="3" rx="1.5" fill="#00C3F7" />
-                        <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#00C3F7" />
-                      </svg>
-                      <span>Pay {activeCurrency.symbol}{activeCurrency.amount} with Paystack</span>
-                      <i className="fa-solid fa-lock text-xs text-amber-300 ml-1"></i>
+                      <span className="text-base">🦤</span>
+                      <span>Pay {activeCurrency.symbol}{activeCurrency.amount} with Dodo Payments</span>
+                      <i className="fa-solid fa-lock text-xs text-amber-200 ml-1"></i>
                     </>
                   )}
                 </button>
@@ -775,45 +736,45 @@ Thank you for supporting Lumina Diary!`;
                   <button
                     type="button"
                     onClick={() => {
-                      const demoRef = `PSTK-TEST-${Date.now()}`;
+                      const demoRef = `DODO-TEST-${Date.now()}`;
                       handleSuccessfulPayment(demoRef);
                     }}
-                    className="text-[10px] text-cyan-700 hover:text-cyan-900 font-bold underline cursor-pointer flex items-center gap-1"
+                    className="text-[10px] text-orange-700 hover:text-orange-900 font-bold underline cursor-pointer flex items-center gap-1"
                   >
                     <i className="fa-solid fa-bolt text-amber-500 text-[10px]"></i>
-                    Instant Sandbox Payment Simulation
+                    Instant Dodo Sandbox Simulation
                   </button>
-                  <span className="text-[10px] text-slate-400">Direct Paystack Pop-up</span>
+                  <span className="text-[10px] text-slate-400">Dodo Payments MoR Pop-up</span>
                 </div>
               </div>
 
               {/* Supported Payment Channels */}
               <div className="border-t border-slate-100 pt-3 space-y-2">
                 <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider pl-1">
-                  <span>Paystack Channels</span>
+                  <span>Dodo Payments Channels</span>
                   <span>Zero Processing Delay</span>
                 </div>
                 
                 <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
                   <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <i className="fa-solid fa-credit-card text-cyan-600 block mb-1 text-sm"></i>
+                    <i className="fa-solid fa-credit-card text-orange-600 block mb-1 text-sm"></i>
                     <span className="font-bold text-slate-700 block">Cards</span>
-                    <span className="text-[9px] text-slate-400 block">Visa • Master</span>
+                    <span className="text-[9px] text-slate-400 block">Visa • Master • Amex</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <i className="fa-brands fa-apple text-slate-800 block mb-1 text-sm"></i>
+                    <span className="font-bold text-slate-700 block">Express</span>
+                    <span className="text-[9px] text-slate-400 block">Apple & Google Pay</span>
                   </div>
                   <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
                     <i className="fa-solid fa-building-columns text-indigo-600 block mb-1 text-sm"></i>
-                    <span className="font-bold text-slate-700 block">EFT & Bank</span>
-                    <span className="text-[9px] text-slate-400 block">Instant Transfer</span>
+                    <span className="font-bold text-slate-700 block">Bank Wire</span>
+                    <span className="text-[9px] text-slate-400 block">Global ACH & EFT</span>
                   </div>
                   <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <i className="fa-solid fa-mobile-screen-button text-emerald-600 block mb-1 text-sm"></i>
-                    <span className="font-bold text-slate-700 block">Mobile Money</span>
-                    <span className="text-[9px] text-slate-400 block">M-Pesa • MoMo</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <i className="fa-solid fa-qrcode text-amber-600 block mb-1 text-sm"></i>
-                    <span className="font-bold text-slate-700 block">QR & USSD</span>
-                    <span className="text-[9px] text-slate-400 block">1-Tap Scan</span>
+                    <i className="fa-solid fa-globe text-emerald-600 block mb-1 text-sm"></i>
+                    <span className="font-bold text-slate-700 block">Local Pay</span>
+                    <span className="text-[9px] text-slate-400 block">150+ Countries</span>
                   </div>
                 </div>
 
@@ -843,9 +804,9 @@ Thank you for supporting Lumina Diary!`;
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             className="bg-white rounded-[28px] sm:rounded-[32px] shadow-2xl p-6 sm:p-8 max-w-md w-full max-h-[92dvh] overflow-y-auto border border-slate-100 flex flex-col items-center justify-center relative space-y-4 text-center"
           >
-            {/* Paystack Verified Crown & Checkmark Badge */}
+            {/* Dodo Verified Crown & Checkmark Badge */}
             <div className="relative">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-cyan-50 border border-cyan-200/80 rounded-full flex items-center justify-center text-cyan-600 text-3xl shadow-sm">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-50 border border-orange-200/80 rounded-full flex items-center justify-center text-orange-600 text-3xl shadow-sm">
                 <i className="fa-solid fa-crown text-amber-400"></i>
               </div>
               <span className="absolute bottom-0 right-0 w-6 h-6 bg-emerald-500 text-white text-[10px] rounded-full flex items-center justify-center border-2 border-white shadow">
@@ -854,8 +815,8 @@ Thank you for supporting Lumina Diary!`;
             </div>
 
             <div className="space-y-1">
-              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-50 border border-cyan-100 text-cyan-700 text-[10px] font-black uppercase tracking-wider mb-1">
-                <i className="fa-solid fa-badge-check text-cyan-600"></i> Paystack Payment Verified
+              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-100 text-orange-800 text-[10px] font-black uppercase tracking-wider mb-1">
+                <i className="fa-solid fa-badge-check text-orange-600"></i> Dodo Payment Verified
               </div>
               <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Digital License Activated!
@@ -866,7 +827,7 @@ Thank you for supporting Lumina Diary!`;
             </div>
 
             {/* Generated Digital License Key Box */}
-            <div className="w-full bg-[#011B33] text-white rounded-2xl p-3.5 text-left space-y-2">
+            <div className="w-full bg-[#0F172A] text-white rounded-2xl p-3.5 text-left space-y-2">
               <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                 <span>Your Digital License Key</span>
                 <span className="text-emerald-400 flex items-center gap-1">
@@ -880,7 +841,7 @@ Thank you for supporting Lumina Diary!`;
                 <button
                   type="button"
                   onClick={handleCopyLicense}
-                  className="ml-2 text-white hover:text-amber-300 text-xs px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 transition-colors cursor-pointer"
+                  className="ml-2 text-white hover:text-amber-300 text-xs px-2.5 py-0.5 rounded bg-orange-600 hover:bg-orange-500 transition-colors cursor-pointer"
                 >
                   {copiedLicense ? 'Copied!' : 'Copy Key'}
                 </button>
@@ -892,13 +853,13 @@ Thank you for supporting Lumina Diary!`;
               <div className="flex justify-between items-center text-slate-600">
                 <span className="font-medium">Gateway:</span>
                 <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                  Paystack Inline
+                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                  Dodo Payments (Global MoR)
                 </span>
               </div>
               <div className="flex justify-between items-center text-slate-600 text-[11px] truncate">
                 <span className="font-medium">Reference:</span>
-                <span className="font-mono text-slate-700 truncate max-w-[170px]">{transactionRef || 'PSTK-TX-' + Date.now()}</span>
+                <span className="font-mono text-slate-700 truncate max-w-[170px]">{transactionRef || 'DODO-TX-' + Date.now()}</span>
               </div>
               <div className="flex justify-between items-center text-slate-600 text-[11px]">
                 <span className="font-medium">Product:</span>
@@ -906,7 +867,7 @@ Thank you for supporting Lumina Diary!`;
               </div>
               <div className="flex justify-between items-center text-slate-600 text-[11px]">
                 <span className="font-medium">License Plan:</span>
-                <span className="font-bold text-cyan-700">
+                <span className="font-bold text-orange-700">
                   {billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}
                 </span>
               </div>
@@ -927,7 +888,7 @@ Thank you for supporting Lumina Diary!`;
               <button
                 type="button"
                 onClick={() => onUnlock(billingType)}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 active:scale-[0.99] text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-cyan-100 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 active:scale-[0.99] text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-orange-100 flex items-center justify-center gap-2 cursor-pointer transition-all"
               >
                 <span>Enter Your Sanctuary</span>
                 <i className="fa-solid fa-arrow-right text-xs"></i>
@@ -938,8 +899,8 @@ Thank you for supporting Lumina Diary!`;
                 onClick={handleCopyReceipt}
                 className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200/80 active:scale-[0.99] text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all"
               >
-                <i className="fa-solid fa-receipt text-cyan-600"></i>
-                <span>{copiedReceipt ? 'Receipt Copied to Clipboard!' : 'Copy Paystack Receipt'}</span>
+                <i className="fa-solid fa-receipt text-orange-600"></i>
+                <span>{copiedReceipt ? 'Receipt Copied to Clipboard!' : 'Copy Dodo Receipt'}</span>
               </button>
             </div>
           </motion.div>

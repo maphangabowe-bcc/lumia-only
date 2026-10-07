@@ -334,14 +334,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onUpgradeClick();
                 if (onCloseMobile) onCloseMobile();
               }}
-              className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-cyan-900/40 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+              className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-orange-900/40 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-                <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-                <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-              </svg>
-              <span>{trialInfo?.isCancelled ? 'Reactivate ($2.50 via Paystack)' : 'Pay $2.50 with Paystack'}</span>
+              <span className="text-xs">🦤</span>
+              <span>{trialInfo?.isCancelled ? 'Reactivate ($2.50 via Dodo)' : 'Pay $2.50 with Dodo'}</span>
             </button>
           </div>
         )}
