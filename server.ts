@@ -492,11 +492,9 @@ Guidelines:
   // Get Dodo Payments Public Config
   app.get("/api/dodo/config", (_req, res) => {
     const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode";
-    const publicKey = process.env.VITE_DODO_PAYMENTS_PUBLIC_KEY || process.env.DODO_PAYMENTS_PUBLIC_KEY || "dodo_pub_test_lumina_diary";
     res.json({
       status: true,
       environment,
-      publicKey,
       isConfigured: true
     });
   });

@@ -430,15 +430,6 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
 
                 {trialInfo?.isPaid && (
                   <div className="pt-2.5 border-t border-slate-200/60 space-y-2">
-                    {localStorage.getItem('lumina_premium_license_key') && (
-                      <div className="flex items-center justify-between text-[10px] bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/60 font-mono">
-                        <span className="text-slate-500 font-sans font-medium flex items-center gap-1">
-                          <i className="fa-solid fa-key text-[9px] text-amber-500"></i>
-                          License:
-                        </span>
-                        <span className="text-indigo-600 font-bold tracking-wider">{localStorage.getItem('lumina_premium_license_key')}</span>
-                      </div>
-                    )}
                     {(localStorage.getItem('lumina_dodo_ref') || localStorage.getItem('lumina_payment_ref')) && (
                       <div className="flex items-center justify-between text-[10px] bg-white px-2.5 py-1 rounded-xl border border-slate-200/60 font-mono">
                         <span className="text-slate-500 font-sans font-medium flex items-center gap-1">

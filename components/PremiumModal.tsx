@@ -65,10 +65,8 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const [receiptEmail, setReceiptEmail] = useState(userEmail || 'maphangabowe@gmail.com');
   const [isEditingEmail, setIsEditingEmail] = useState(false);
 
-  // Generated digital license reference
-  const [generatedLicense, setGeneratedLicense] = useState('');
+  // Transaction reference & receipt state
   const [transactionRef, setTransactionRef] = useState('');
-  const [copiedLicense, setCopiedLicense] = useState(false);
   const [copiedReceipt, setCopiedReceipt] = useState(false);
 
   // Ensure Dodo Payments Checkout JS SDK is loaded
@@ -78,18 +76,16 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     });
   }, []);
 
-  // Generate unique license code once on success
-  const generateLicenseCode = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = 'LUM-DODO-';
-    for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    code += '-';
-    for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    return code;
-  };
-
   const handleSuccessfulPayment = async (ref: string) => {
     setIsProcessing(true);
+    // Mark paid in trial service immediately for persistent state
+    try {
+      trialService.markPaid(billingType);
+      onUnlock(billingType);
+    } catch (e) {
+      console.warn('Trial service mark paid note:', e);
+    }
+
     // Verify transaction server-side
     try {
       await dodoService.verifyPayment(ref);
@@ -97,23 +93,21 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
       console.warn('Transaction verification note:', e);
     }
 
-    const code = generateLicenseCode();
-    setGeneratedLicense(code);
     setTransactionRef(ref);
     try {
-      localStorage.setItem('lumina_premium_license_key', code);
+      localStorage.removeItem('lumina_premium_license_key');
       localStorage.setItem('lumina_dodo_ref', ref);
     } catch (err) {
-      console.warn('Could not cache license key:', err);
+      console.warn('Could not cache transaction ref:', err);
     }
     setIsProcessing(false);
     setStep('success');
   };
 
-  // Launch Dodo Payments Checkout
-  const handleDodoCheckout = async () => {
+  // Launch Dodo Payments Checkout (supports Apple Pay direct express or all channels)
+  const handleDodoCheckout = async (defaultMethod: 'apple_pay' | 'card' | 'google_pay' = 'card') => {
     if (!receiptEmail || !receiptEmail.includes('@')) {
-      setError('Please provide a valid delivery email address for your license receipt.');
+      setError('Please provide a valid delivery email address for your payment receipt.');
       return;
     }
 
@@ -131,6 +125,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
         ref: generatedRef,
         billingType,
         customerName: receiptEmail.split('@')[0],
+        defaultMethod,
         onSuccess: (confirmedRef) => {
           setIsProcessing(false);
           handleSuccessfulPayment(confirmedRef);
@@ -142,7 +137,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
         onError: (err) => {
           console.warn('Dodo Payments failed or declined:', err);
           setIsProcessing(false);
-          setError('Payment transaction failed or was declined. Premium access was not granted.');
+          setError(typeof err === 'string' ? err : 'Payment transaction failed or was declined. Premium access was not granted.');
         }
       });
     } catch (err) {
@@ -152,21 +147,12 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     }
   };
 
-  const handleCopyLicense = () => {
-    if (!generatedLicense) return;
-    navigator.clipboard.writeText(generatedLicense).then(() => {
-      setCopiedLicense(true);
-      setTimeout(() => setCopiedLicense(false), 2500);
-    });
-  };
-
   const handleCopyReceipt = () => {
     const cur = CURRENCIES[currency];
     const receiptText = `LUMINA DIARY PRO - DIGITAL RECEIPT (DODO PAYMENTS)
 ------------------------------------------------
 Payment Gateway: Dodo Payments (Global MoR)
 Dodo Reference: ${transactionRef || 'DODO-' + Date.now()}
-License Key: ${generatedLicense}
 Product: Lumina Diary Pro (Digital Edition)
 Plan: ${billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}
 Total Paid: ${cur.symbol}${cur.amount} ${cur.code}
@@ -442,7 +428,7 @@ Thank you for supporting Lumina Diary!`;
             <div className="px-5 py-3.5 sm:py-4 bg-slate-50 border-t border-slate-100 flex flex-row items-center justify-between gap-3 shrink-0 rounded-b-[28px] sm:rounded-b-[32px]">
               <div>
                 <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                  Total License Price
+                  Total Price
                 </div>
                 <div className="text-lg sm:text-xl font-black text-cyan-700">
                   $2.50<span className="text-[11px] font-semibold text-slate-400">{billingType === 'manual' ? ' / one-time' : ' / yr'}</span>
@@ -475,7 +461,7 @@ Thank you for supporting Lumina Diary!`;
                 <button 
                   onClick={() => setStep('info')}
                   className="w-8 h-8 rounded-full hover:bg-slate-200/70 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
-                  title="Back to license plans"
+                  title="Back to plans"
                 >
                   <i className="fa-solid fa-arrow-left text-xs"></i>
                 </button>
@@ -663,7 +649,7 @@ Thank you for supporting Lumina Diary!`;
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
                     <i className="fa-solid fa-envelope text-orange-600"></i>
-                    Dodo License & Receipt Recipient
+                    Dodo Payment & Receipt Recipient
                   </label>
                   {!isEditingEmail ? (
                     <button
@@ -696,7 +682,7 @@ Thank you for supporting Lumina Diary!`;
                 ) : (
                   <div className="text-xs font-semibold text-slate-700 truncate flex items-center justify-between">
                     <span>{receiptEmail || 'No recipient email specified'}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">License bound to this email</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Confirmation sent to this email</span>
                   </div>
                 )}
               </div>
@@ -710,12 +696,44 @@ Thank you for supporting Lumina Diary!`;
               )}
 
               {/* Dodo Payments Primary Action Box */}
-              <div className="space-y-3 pt-1">
+              <div className="space-y-2.5 pt-1">
+                {/* Dedicated 1-Tap Apple Pay Button */}
                 <button
                   type="button"
-                  onClick={handleDodoCheckout}
+                  onClick={() => handleDodoCheckout('apple_pay')}
                   disabled={isProcessing}
-                  className="w-full py-3.5 px-5 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 hover:opacity-95 active:scale-[0.99] text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-orange-900/20 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-75"
+                  className="w-full py-3.5 px-5 bg-black hover:bg-neutral-900 active:scale-[0.99] text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-black/25 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-75 border border-white/10 relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
+                  {isProcessing ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin text-sm"></i>
+                      <span>Connecting Apple Pay...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl leading-none font-sans"></span>
+                      <span>Pay with Apple Pay</span>
+                      <span className="text-xs text-neutral-300 font-medium">({activeCurrency.symbol}{activeCurrency.amount})</span>
+                      <span className="ml-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-white/20 text-white rounded-full border border-white/10">
+                        1-Tap Face ID
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center gap-2 py-0.5">
+                  <div className="flex-1 h-px bg-slate-200"></div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">or other payment methods</span>
+                  <div className="flex-1 h-px bg-slate-200"></div>
+                </div>
+
+                {/* Dodo Payments Multi-Method Button (Cards, GPay, Wire) */}
+                <button
+                  type="button"
+                  onClick={() => handleDodoCheckout('card')}
+                  disabled={isProcessing}
+                  className="w-full py-3 px-5 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 hover:opacity-95 active:scale-[0.99] text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-md shadow-orange-900/15 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-75"
                 >
                   {isProcessing ? (
                     <>
@@ -725,7 +743,7 @@ Thank you for supporting Lumina Diary!`;
                   ) : (
                     <>
                       <span className="text-base">🦤</span>
-                      <span>Pay {activeCurrency.symbol}{activeCurrency.amount} with Dodo Payments</span>
+                      <span>Pay {activeCurrency.symbol}{activeCurrency.amount} with Cards & GPay</span>
                       <i className="fa-solid fa-lock text-xs text-amber-200 ml-1"></i>
                     </>
                   )}
@@ -752,28 +770,44 @@ Thank you for supporting Lumina Diary!`;
               <div className="border-t border-slate-100 pt-3 space-y-2">
                 <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider pl-1">
                   <span>Dodo Payments Channels</span>
-                  <span>Zero Processing Delay</span>
+                  <span>Instant 0s Activation</span>
                 </div>
                 
                 <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
-                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <i className="fa-solid fa-credit-card text-orange-600 block mb-1 text-sm"></i>
+                  <button 
+                    type="button"
+                    onClick={() => handleDodoCheckout('card')}
+                    className="p-2 rounded-xl bg-slate-50 hover:bg-orange-50/70 border border-slate-100 hover:border-orange-200 transition-all text-center cursor-pointer group"
+                  >
+                    <i className="fa-solid fa-credit-card text-orange-600 block mb-1 text-sm group-hover:scale-110 transition-transform"></i>
                     <span className="font-bold text-slate-700 block">Cards</span>
-                    <span className="text-[9px] text-slate-400 block">Visa • Master • Amex</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <i className="fa-brands fa-apple text-slate-800 block mb-1 text-sm"></i>
-                    <span className="font-bold text-slate-700 block">Express</span>
-                    <span className="text-[9px] text-slate-400 block">Apple & Google Pay</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <i className="fa-solid fa-building-columns text-indigo-600 block mb-1 text-sm"></i>
-                    <span className="font-bold text-slate-700 block">Bank Wire</span>
-                    <span className="text-[9px] text-slate-400 block">Global ACH & EFT</span>
-                  </div>
+                    <span className="text-[9px] text-slate-400 block">Visa • Master</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => handleDodoCheckout('apple_pay')}
+                    className="p-2 rounded-xl bg-slate-50 hover:bg-neutral-100 border border-slate-100 hover:border-slate-300 transition-all text-center cursor-pointer group relative overflow-hidden"
+                  >
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <i className="fa-brands fa-apple text-slate-800 block mb-1 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span className="font-bold text-slate-800 block">Pay</span>
+                    <span className="text-[9px] text-emerald-600 font-semibold block">1-Tap Ready</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => handleDodoCheckout('google_pay')}
+                    className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-100 hover:border-blue-200 transition-all text-center cursor-pointer group"
+                  >
+                    <i className="fa-brands fa-google-pay text-blue-600 block mb-1 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span className="font-bold text-slate-700 block">GPay</span>
+                    <span className="text-[9px] text-slate-400 block">Google Wallet</span>
+                  </button>
+
                   <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
                     <i className="fa-solid fa-globe text-emerald-600 block mb-1 text-sm"></i>
-                    <span className="font-bold text-slate-700 block">Local Pay</span>
+                    <span className="font-bold text-slate-700 block">Global MoR</span>
                     <span className="text-[9px] text-slate-400 block">150+ Countries</span>
                   </div>
                 </div>
@@ -795,7 +829,7 @@ Thank you for supporting Lumina Diary!`;
           </motion.div>
         )}
 
-        {/* STEP 3: DIGITAL LICENSE CONFIRMATION & RECEIPT */}
+        {/* STEP 3: PAYMENT CONFIRMATION & RECEIPT */}
         {step === 'success' && (
           <motion.div
             key="success"
@@ -815,36 +849,34 @@ Thank you for supporting Lumina Diary!`;
             </div>
 
             <div className="space-y-1">
-              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-100 text-orange-800 text-[10px] font-black uppercase tracking-wider mb-1">
-                <i className="fa-solid fa-badge-check text-orange-600"></i> Dodo Payment Verified
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-black uppercase tracking-wider mb-1">
+                <i className="fa-solid fa-circle-check text-emerald-500"></i>
+                <span>Dodo Payment Verified & Active</span>
               </div>
               <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                Digital License Activated!
+                Lumina Pro Activated!
               </h3>
               <p className="text-slate-500 text-xs sm:text-sm max-w-xs leading-relaxed">
                 Your Lumina Diary Pro access is now live across your browser and cloud profile.
               </p>
             </div>
 
-            {/* Generated Digital License Key Box */}
-            <div className="w-full bg-[#0F172A] text-white rounded-2xl p-3.5 text-left space-y-2">
-              <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                <span>Your Digital License Key</span>
-                <span className="text-emerald-400 flex items-center gap-1">
+            {/* Pro Status Active Card (No purchase key needed) */}
+            <div className="w-full bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-4 text-left border border-slate-800 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400">
+                    <i className="fa-solid fa-shield-halved text-sm"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">Full Pro Membership</div>
+                    <div className="text-[10px] text-slate-400">Automatic device & cloud unlock</div>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   Active
                 </span>
-              </div>
-              
-              <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-700/60 font-mono text-xs text-amber-300 font-bold">
-                <span className="tracking-wider">{generatedLicense || 'LUM-DODO-2026-ACTIVE'}</span>
-                <button
-                  type="button"
-                  onClick={handleCopyLicense}
-                  className="ml-2 text-white hover:text-amber-300 text-xs px-2.5 py-0.5 rounded bg-orange-600 hover:bg-orange-500 transition-colors cursor-pointer"
-                >
-                  {copiedLicense ? 'Copied!' : 'Copy Key'}
-                </button>
               </div>
             </div>
 
@@ -866,7 +898,7 @@ Thank you for supporting Lumina Diary!`;
                 <span className="font-bold text-slate-800">Lumina Diary Pro (Digital)</span>
               </div>
               <div className="flex justify-between items-center text-slate-600 text-[11px]">
-                <span className="font-medium">License Plan:</span>
+                <span className="font-medium">Plan:</span>
                 <span className="font-bold text-orange-700">
                   {billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}
                 </span>
