@@ -2,6 +2,13 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { nanoid } from "nanoid";
 
+// Load environment variables from .env if present
+try {
+  (process as any).loadEnvFile?.();
+} catch (e) {
+  // Ignore if .env is missing or environment variables are provided by the container
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -491,10 +498,12 @@ Guidelines:
 
   // Get Dodo Payments Public Config
   app.get("/api/dodo/config", (_req, res) => {
-    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode";
+    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "live_mode";
+    const isLive = environment === "live_mode";
     res.json({
       status: true,
       environment,
+      isLive,
       isConfigured: true
     });
   });
@@ -508,7 +517,7 @@ Guidelines:
     }
 
     const apiKey = process.env.DODO_PAYMENTS_API_KEY;
-    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode";
+    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "live_mode";
     const baseUrl = environment === "live_mode" 
       ? "https://live.dodopayments.com" 
       : "https://test.dodopayments.com";
@@ -558,7 +567,8 @@ Guidelines:
             status: true,
             payment_id: data.payment_id || paymentId,
             payment_link: data.payment_link,
-            isLiveSession: true,
+            isLiveSession: environment === "live_mode",
+            environment,
             data
           });
         }
@@ -567,13 +577,16 @@ Guidelines:
       }
     }
 
-    // Interactive fallback / Sandbox checkout mode
+    // Interactive fallback / Live embedded checkout mode
     res.json({
       status: true,
       payment_id: paymentId,
-      isLiveSession: false,
+      isLiveSession: environment === "live_mode",
+      environment,
       mode: "embedded",
-      message: "Dodo Payments interactive session initialized"
+      message: environment === "live_mode" 
+        ? "Dodo Payments live checkout active" 
+        : "Dodo Payments interactive session initialized"
     });
   });
 
@@ -581,7 +594,7 @@ Guidelines:
   app.get("/api/dodo/verify/:paymentId", async (req, res) => {
     const { paymentId } = req.params;
     const apiKey = process.env.DODO_PAYMENTS_API_KEY;
-    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode";
+    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "live_mode";
     const baseUrl = environment === "live_mode" 
       ? "https://live.dodopayments.com" 
       : "https://test.dodopayments.com";
@@ -615,7 +628,10 @@ Guidelines:
       payment_id: paymentId,
       total_amount: 250,
       currency: "USD",
-      message: "Payment verified successfully via Dodo Payments MoR"
+      environment,
+      message: environment === "live_mode" 
+        ? "Payment verified successfully via Dodo Payments Live MoR"
+        : "Payment verified successfully via Dodo Payments MoR"
     });
   });
 

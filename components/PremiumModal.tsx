@@ -496,7 +496,10 @@ Thank you for supporting Lumina Diary!`;
                     <div>
                       <h4 className="font-black text-sm text-white tracking-wide flex items-center gap-1.5">
                         Dodo Payments
-                        <span className="text-[9px] bg-orange-500/20 text-orange-400 font-bold px-1.5 py-0.2 rounded border border-orange-500/30">MoR</span>
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          LIVE
+                        </span>
                       </h4>
                       <p className="text-[10px] text-slate-400 font-medium">Cards • Apple Pay • Google Pay • Global Wire</p>
                     </div>

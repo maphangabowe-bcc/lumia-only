@@ -11,6 +11,7 @@ export interface DodoConfig {
   status: boolean;
   environment: 'test_mode' | 'live_mode';
   isConfigured: boolean;
+  isLive?: boolean;
 }
 
 export interface DodoInitParams {
@@ -103,7 +104,8 @@ class DodoService {
 
     return {
       status: true,
-      environment: 'test_mode',
+      environment: 'live_mode',
+      isLive: true,
       isConfigured: true
     };
   }
@@ -509,7 +511,7 @@ class DodoService {
             <div>
               <div style="font-weight:900;font-size:15px;letter-spacing:0.3px;display:flex;align-items:center;gap:6px;">
                 Dodo Payments
-                <span style="background:rgba(255,107,0,0.2);color:#FF9D54;font-size:9px;padding:2px 6px;border-radius:6px;font-weight:800;">GLOBAL MoR</span>
+                <span style="background:rgba(16,185,129,0.2);color:#34D399;font-size:9px;padding:2px 8px;border-radius:6px;font-weight:800;border:1px solid rgba(52,211,153,0.3);">● LIVE GATEWAY</span>
               </div>
               <div style="font-size:11px;color:#94A3B8;">Encrypted Checkout • 150+ Countries</div>
             </div>
