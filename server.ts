@@ -555,11 +555,12 @@ Guidelines:
         });
 
         const data = await response.json();
-        if (response.ok && data) {
+        if (response.ok && data && (data.payment_link || data.payment_id)) {
           return res.json({
             status: true,
             payment_id: data.payment_id || paymentId,
-            payment_link: data.payment_link || `${baseUrl}/checkout/${data.payment_id || paymentId}`,
+            payment_link: data.payment_link,
+            isLiveSession: true,
             data
           });
         }
@@ -568,12 +569,13 @@ Guidelines:
       }
     }
 
-    // Interactive fallback / Sandbox link
+    // Interactive fallback / Sandbox checkout mode
     res.json({
       status: true,
       payment_id: paymentId,
-      payment_link: `${baseUrl}/checkout/${paymentId}`,
-      message: "Dodo Payments session initialized"
+      isLiveSession: false,
+      mode: "embedded",
+      message: "Dodo Payments interactive session initialized"
     });
   });
 

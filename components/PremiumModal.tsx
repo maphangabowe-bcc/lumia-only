@@ -81,7 +81,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   // Generate unique license code once on success
   const generateLicenseCode = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = 'LUM-PRO-';
+    let code = 'LUM-DODO-';
     for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     code += '-';
     for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -837,7 +837,7 @@ Thank you for supporting Lumina Diary!`;
               </div>
               
               <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-700/60 font-mono text-xs text-amber-300 font-bold">
-                <span className="tracking-wider">{generatedLicense || 'LUM-PRO-2026-ACTIVE'}</span>
+                <span className="tracking-wider">{generatedLicense || 'LUM-DODO-2026-ACTIVE'}</span>
                 <button
                   type="button"
                   onClick={handleCopyLicense}

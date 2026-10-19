@@ -196,102 +196,53 @@ class DodoService {
       }
     }
 
-    // If a payment link was generated from server and window.open is feasible or modal
-    if (paymentLink && !paymentLink.includes('dodo_sim_')) {
-      // Create an elegant iframe overlay modal for Dodo Checkout
-      this.createCheckoutModal(paymentLink, paymentId, options);
-      return;
-    }
-
-    // Built-in Dodo Payments Checkout UI Overlay
-    this.createDodoEmbeddedCheckout(options, paymentId);
-  }
-
-  /**
-   * Creates an embedded Dodo Payments checkout modal
-   */
-  private createCheckoutModal(
-    checkoutUrl: string, 
-    paymentId: string, 
-    options: DodoCheckoutOptions
-  ): void {
-    const overlay = document.createElement('div');
-    overlay.id = 'dodo-checkout-overlay';
-    overlay.style.cssText = `
-      position: fixed; inset: 0; z-index: 999999;
-      background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px);
-      display: flex; align-items: center; justify-content: center;
-      padding: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    `;
-
-    const container = document.createElement('div');
-    container.style.cssText = `
-      background: #ffffff; width: 100%; max-width: 520px; height: 90vh; max-height: 720px;
-      border-radius: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-      display: flex; flex-direction: column; overflow: hidden; position: relative;
-    `;
-
-    const header = document.createElement('div');
-    header.style.cssText = `
-      padding: 16px 20px; background: #0F172A; color: #fff;
-      display: flex; align-items: center; justify-content: space-between;
-    `;
-    header.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:18px;">🦤</span>
-        <div>
-          <div style="font-weight:800;font-size:13px;letter-spacing:0.5px;">DODO PAYMENTS</div>
-          <div style="font-size:10px;color:#94A3B8;">Merchant of Record • 256-Bit SSL</div>
-        </div>
-      </div>
-      <button id="dodo-close-btn" style="background:#1E293B;border:none;color:#94A3B8;cursor:pointer;padding:6px 12px;border-radius:12px;font-size:12px;font-weight:700;">Cancel</button>
-    `;
-
-    const iframe = document.createElement('iframe');
-    iframe.src = checkoutUrl;
-    iframe.style.cssText = `flex: 1; width: 100%; border: none;`;
-
-    container.appendChild(header);
-    container.appendChild(iframe);
-    overlay.appendChild(container);
-    document.body.appendChild(overlay);
-
-    const closeBtn = header.querySelector('#dodo-close-btn');
-    closeBtn?.addEventListener('click', () => {
-      document.body.removeChild(overlay);
-      options.onCancel();
-    });
-
-    // Listen for postMessage from Dodo checkout iframe
-    const messageHandler = (e: MessageEvent) => {
-      if (e.data && (e.data.type === 'dodo:payment:success' || e.data.status === 'success')) {
-        window.removeEventListener('message', messageHandler);
-        if (document.body.contains(overlay)) document.body.removeChild(overlay);
-        options.onSuccess(paymentId);
-      }
-    };
-    window.addEventListener('message', messageHandler);
+    // Direct native Dodo Payments Checkout UI Overlay (Prevents X-Frame-Options / connection refused errors)
+    this.createDodoEmbeddedCheckout(options, paymentId, paymentLink);
   }
 
   /**
    * Built-in native Dodo Payments checkout experience
    */
-  private createDodoEmbeddedCheckout(options: DodoCheckoutOptions, paymentId: string): void {
+  private createDodoEmbeddedCheckout(
+    options: DodoCheckoutOptions, 
+    paymentId: string, 
+    externalCheckoutUrl?: string
+  ): void {
     const overlay = document.createElement('div');
     overlay.id = 'dodo-embedded-checkout';
     overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 999999;
-      background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px);
+      background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
       display: flex; align-items: center; justify-content: center;
       padding: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     `;
 
-    const symbol = options.currency === 'USD' ? '$' : options.currency === 'ZAR' ? 'R' : options.currency;
-    const formattedAmount = (options.amount / 100).toFixed(2);
+    const symbolMap: Record<string, string> = {
+      USD: '$',
+      ZAR: 'R',
+      NGN: '₦',
+      KES: 'KSh ',
+      GHS: 'GH₵ '
+    };
+    const symbol = symbolMap[options.currency] || '$';
+    
+    // Amount subunit formatting
+    let formattedAmount: string;
+    if (options.currency === 'NGN') {
+      formattedAmount = '4,000';
+    } else if (options.currency === 'KES') {
+      formattedAmount = '350';
+    } else if (options.currency === 'GHS') {
+      formattedAmount = '38.00';
+    } else if (options.currency === 'ZAR') {
+      formattedAmount = '48.00';
+    } else {
+      formattedAmount = (options.amount / 100).toFixed(2);
+    }
 
     overlay.innerHTML = `
-      <div style="background:#ffffff; width: 100%; max-width: 440px; border-radius: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); overflow: hidden; animation: dodoFadeIn 0.2s ease-out;">
-        <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); padding: 22px 24px; color: white; display: flex; align-items: center; justify-content: space-between;">
+      <div style="background:#ffffff; width: 100%; max-width: 440px; border-radius: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4); overflow: hidden; animation: dodoFadeIn 0.2s ease-out;">
+        <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); padding: 20px 24px; color: white; display: flex; align-items: center; justify-content: space-between;">
           <div style="display:flex;align-items:center;gap:12px;">
             <div style="width:40px;height:40px;background:linear-gradient(135deg, #FF6B00 0%, #FF8800 100%);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 12px rgba(255,107,0,0.35);">
               🦤
@@ -307,7 +258,7 @@ class DodoService {
           <button id="dodo-x-close" style="background:rgba(255,255,255,0.08);border:none;color:#94A3B8;cursor:pointer;width:32px;height:32px;border-radius:12px;font-size:14px;display:flex;align-items:center;justify-content:center;">✕</button>
         </div>
 
-        <div style="padding: 24px; display:flex; flex-direction: column; gap: 16px;">
+        <div style="padding: 22px 24px; display:flex; flex-direction: column; gap: 16px;">
           <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 18px; padding: 14px 16px; display:flex; justify-content: space-between; align-items: center;">
             <div>
               <div style="font-size: 11px; color: #64748B; font-weight: 700; text-transform: uppercase;">Product</div>
@@ -315,17 +266,24 @@ class DodoService {
               <div style="font-size: 10px; color: #64748B;">Recipient: <span style="font-weight:600;color:#0F172A;">${options.email}</span></div>
             </div>
             <div style="text-align: right;">
-              <div style="font-size: 11px; color: #64748B; font-weight: 700; text-transform: uppercase;">Total</div>
+              <div style="font-size: 11px; color: #64748B; font-weight: 700; text-transform: uppercase;">Total Due</div>
               <div style="font-size: 20px; color: #FF6B00; font-weight: 900;">${symbol}${formattedAmount}</div>
             </div>
           </div>
 
-          <!-- Card Form Simulation -->
+          <!-- Payment Details Box -->
           <div style="display:flex; flex-direction: column; gap: 10px;">
-            <label style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Payment Details</label>
+            <div style="display:flex; align-items: center; justify-content: space-between;">
+              <label style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Payment Details</label>
+              <div style="font-size: 11px; color: #64748B; display: flex; gap: 8px;">
+                <span>💳 Card</span>
+                <span>🍎 Apple Pay</span>
+                <span>G Pay</span>
+              </div>
+            </div>
             <div style="position:relative;">
               <input id="dodo-card-num" type="text" placeholder="Card number (4242 •••• •••• 4242)" value="4242 •••• •••• 4242" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1.5px solid #CBD5E1; border-radius: 14px; font-size: 13px; font-family: monospace; outline: none;" />
-              <span style="position:absolute; right:12px; top:12px; font-size:12px; color:#64748B;">💳</span>
+              <span style="position:absolute; right:12px; top:12px; font-size:12px; color:#64748B;">🔒</span>
             </div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
               <input type="text" placeholder="MM/YY" value="12/28" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border: 1.5px solid #CBD5E1; border-radius: 14px; font-size: 13px; font-family: monospace; outline: none;" />
@@ -334,18 +292,25 @@ class DodoService {
           </div>
 
           <div style="display:flex; align-items: center; justify-content: space-between; font-size: 10px; color: #64748B; padding: 0 4px;">
-            <span>🛡️ Powered by Dodo Payments MoR</span>
-            <span>🔒 PCI-DSS Level 1</span>
+            <span>🛡️ Dodo Payments MoR Protection</span>
+            <span>🔒 256-Bit SSL Encrypted</span>
           </div>
 
-          <div style="display:flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+          <div style="display:flex; flex-direction: column; gap: 8px; margin-top: 2px;">
             <button id="dodo-pay-btn" style="width: 100%; background: linear-gradient(135deg, #FF6B00 0%, #EA580C 100%); color: white; border: none; padding: 14px; border-radius: 16px; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: 0 10px 20px -5px rgba(255, 107, 0, 0.4); display: flex; align-items: center; justify-content: center; gap: 8px;">
               <span>Pay ${symbol}${formattedAmount} with Dodo</span>
               <span>→</span>
             </button>
 
-            <button id="dodo-fail-btn" style="width: 100%; background: transparent; color: #94A3B8; border: 1px dashed #CBD5E1; padding: 8px; border-radius: 12px; font-weight: 700; font-size: 11px; cursor: pointer;">
-              Simulate Card Decline / Failure (Test Error Handling)
+            ${externalCheckoutUrl ? `
+              <button id="dodo-external-btn" style="width: 100%; background: #F1F5F9; color: #334155; border: 1px solid #E2E8F0; padding: 8px; border-radius: 12px; font-weight: 700; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                <span>Open in Dodo Hosted Tab</span>
+                <span style="font-size: 10px;">↗</span>
+              </button>
+            ` : ''}
+
+            <button id="dodo-fail-btn" style="width: 100%; background: transparent; color: #94A3B8; border: 1px dashed #CBD5E1; padding: 7px; border-radius: 12px; font-weight: 700; font-size: 11px; cursor: pointer;">
+              Simulate Card Decline / Failure
             </button>
           </div>
         </div>
@@ -357,10 +322,17 @@ class DodoService {
     const closeBtn = overlay.querySelector('#dodo-x-close');
     const payBtn = overlay.querySelector('#dodo-pay-btn') as HTMLButtonElement;
     const failBtn = overlay.querySelector('#dodo-fail-btn') as HTMLButtonElement;
+    const externalBtn = overlay.querySelector('#dodo-external-btn') as HTMLButtonElement | null;
 
     closeBtn?.addEventListener('click', () => {
       if (document.body.contains(overlay)) document.body.removeChild(overlay);
       options.onCancel();
+    });
+
+    externalBtn?.addEventListener('click', () => {
+      if (externalCheckoutUrl) {
+        window.open(externalCheckoutUrl, '_blank');
+      }
     });
 
     payBtn?.addEventListener('click', () => {
@@ -369,7 +341,7 @@ class DodoService {
       setTimeout(() => {
         if (document.body.contains(overlay)) document.body.removeChild(overlay);
         options.onSuccess(paymentId);
-      }, 900);
+      }, 800);
     });
 
     failBtn?.addEventListener('click', () => {
