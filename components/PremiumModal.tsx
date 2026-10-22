@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { dodoService } from '../services/dodoService';
 import { trialService, TrialInfo } from '../services/trialService';
+import { usageMeterService, UsageMeterData } from '../services/usageMeterService';
 
 // Dodo Payments global type definition
 declare global {
@@ -21,7 +22,7 @@ declare global {
 interface PremiumModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUnlock: (billingType: 'manual' | 'auto') => void;
+  onUnlock: (billingType: 'manual' | 'auto' | 'metered') => void;
   entryCount: number;
   userEmail?: string;
   trialInfo?: TrialInfo;
@@ -55,11 +56,18 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   trialInfo
 }) => {
   const [step, setStep] = useState<'info' | 'payment' | 'success'>('info');
-  const [billingType, setBillingType] = useState<'manual' | 'auto'>('manual');
+  const [billingType, setBillingType] = useState<'manual' | 'auto' | 'metered'>('manual');
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [dodoLoaded, setDodoLoaded] = useState(false);
+  const [usageData, setUsageData] = useState<UsageMeterData | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setUsageData(usageMeterService.getUsage());
+    }
+  }, [isOpen]);
   
   // Digital delivery & receipt details
   const [receiptEmail, setReceiptEmail] = useState(userEmail || 'maphangabowe@gmail.com');
@@ -78,30 +86,40 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
 
   const handleSuccessfulPayment = async (ref: string) => {
     setIsProcessing(true);
-    // Mark paid in trial service immediately for persistent state
+    setError('');
+
     try {
+      // 1. Strictly verify transaction with Dodo Payments server-side
+      const verification = await dodoService.verifyPayment(ref);
+
+      if (!verification.status || verification.state !== 'succeeded') {
+        throw new Error(
+          verification.message || 
+          'Payment transaction was not successful or could not be verified on Dodo Payments. Premium access was not granted.'
+        );
+      }
+
+      // 2. Only grant premium access if payment transaction is strictly verified as successful
       trialService.markPaid(billingType);
       onUnlock(billingType);
-    } catch (e) {
-      console.warn('Trial service mark paid note:', e);
-    }
 
-    // Verify transaction server-side
-    try {
-      await dodoService.verifyPayment(ref);
-    } catch (e) {
-      console.warn('Transaction verification note:', e);
+      setTransactionRef(ref);
+      try {
+        localStorage.removeItem('lumina_premium_license_key');
+        localStorage.setItem('lumina_dodo_ref', ref);
+      } catch (err) {
+        console.warn('Could not cache transaction ref:', err);
+      }
+      setIsProcessing(false);
+      setStep('success');
+    } catch (err: any) {
+      console.warn('Payment verification rejected:', err);
+      setIsProcessing(false);
+      setError(
+        err.message || 
+        'Payment transaction could not be verified as successful. Premium access was not granted.'
+      );
     }
-
-    setTransactionRef(ref);
-    try {
-      localStorage.removeItem('lumina_premium_license_key');
-      localStorage.setItem('lumina_dodo_ref', ref);
-    } catch (err) {
-      console.warn('Could not cache transaction ref:', err);
-    }
-    setIsProcessing(false);
-    setStep('success');
   };
 
   // Launch Dodo Payments Checkout (supports Apple Pay direct express or all channels)
@@ -118,6 +136,19 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     const generatedRef = `DODO-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
     try {
+      if (billingType === 'metered') {
+        const meteredRes = await dodoService.initializeMeteredPayment({
+          email: receiptEmail.trim(),
+          customerName: receiptEmail.split('@')[0],
+          ref: generatedRef
+        });
+        setIsProcessing(false);
+        if (meteredRes && meteredRes.status) {
+          handleSuccessfulPayment(meteredRes.payment_id || generatedRef);
+          return;
+        }
+      }
+
       await dodoService.openCheckout({
         email: receiptEmail.trim(),
         amount: activeCurrency.subunits,
@@ -303,6 +334,17 @@ Thank you for supporting Lumina Diary!`;
                   </div>
                 </div>
               )}
+
+              {/* Premium Features Visual Showcase Banner */}
+              <div className="relative rounded-2xl overflow-hidden shadow-md border border-slate-200/80 group bg-slate-900">
+                <img
+                  src="/src/assets/images/premium_features_2048_1792660438152.jpg"
+                  alt="Lumina Diary Pro Premium Features - Infinite Entries, Deep AI Mood Analytics, Secure Cloud Sanctuary, and AI Writing Assistant"
+                  className="w-full h-auto object-cover group-hover:scale-[1.01] transition-transform duration-300"
+                  referrerPolicy="no-referrer"
+                  loading="lazy"
+                />
+              </div>
 
               {/* Digital Inclusions */}
               <div className="space-y-2.5 sm:space-y-3">
@@ -560,15 +602,28 @@ Thank you for supporting Lumina Diary!`;
                   </span>
                 </div>
 
-                <div className="border-t border-slate-200/60 pt-2.5 space-y-1.5 text-xs">
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span className="font-semibold">
-                      Lumina Pro ({billingType === 'manual' ? '1-Year Digital Pass' : 'Annual Plan'})
-                    </span>
-                    <span className="font-bold text-slate-900">
-                      {activeCurrency.symbol}{activeCurrency.amount}
-                    </span>
+                {/* Dodo Product Image and Title Card */}
+                <div className="flex items-center gap-3 bg-white p-2.5 rounded-2xl border border-slate-200/70 shadow-xs">
+                  <img
+                    src="/dodo-product-image.jpg"
+                    alt="Lumina Diary Pro Dodo Product"
+                    className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-100 shadow-xs"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-900 text-xs truncate">
+                      Lumina Diary Pro (Digital Edition)
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate">
+                      {billingType === 'manual' ? '1-Year Pass • One-Time' : 'Annual Plan • Auto-Renewing'}
+                    </div>
                   </div>
+                  <div className="font-black text-cyan-700 text-sm shrink-0">
+                    {activeCurrency.symbol}{activeCurrency.amount}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200/60 pt-2.5 space-y-1.5 text-xs">
                   <div className="flex justify-between items-center text-slate-500 text-[11px]">
                     <span className="flex items-center gap-1">
                       <i className="fa-solid fa-cloud-arrow-down text-cyan-600"></i>
@@ -589,18 +644,18 @@ Thank you for supporting Lumina Diary!`;
                 </div>
               </div>
 
-              {/* Billing Cycle Preference (Auto-billed yearly vs Pay manually) */}
-              <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5 space-y-2">
+              {/* Billing Cycle Preference (Auto-billed yearly vs Pay manually vs Metered Usage) */}
+              <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <i className="fa-solid fa-repeat text-cyan-600"></i>
-                    Billing Preference
+                    <i className="fa-solid fa-gauge-high text-cyan-600"></i>
+                    Billing & Usage Meter
                   </span>
                   <span className="text-[10px] font-bold text-cyan-700 bg-cyan-100/60 px-2 py-0.5 rounded-full">
-                    {billingType === 'auto' ? 'Auto-Billed Yearly' : 'Pay Manually'}
+                    {billingType === 'auto' ? 'Auto-Billed Yearly' : billingType === 'metered' ? 'Pay-As-You-Go Metered' : 'Pay Manually'}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setBillingType('auto')}
@@ -619,7 +674,7 @@ Thank you for supporting Lumina Diary!`;
                       )}
                     </div>
                     <span className="text-[10px] text-slate-500 leading-tight mt-1">
-                      Auto-renews annually ($2.50/yr). Cancel anytime in 1 click.
+                      Auto-renews annually ($2.50/yr). Cancel anytime.
                     </span>
                   </button>
 
@@ -644,7 +699,65 @@ Thank you for supporting Lumina Diary!`;
                       One-time payment for 365 days. Never auto-charged.
                     </span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBillingType('metered')}
+                    className={`py-2.5 px-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      billingType === 'metered'
+                        ? 'border-cyan-600 bg-white ring-1 ring-cyan-500/30 shadow-xs'
+                        : 'border-slate-200/90 hover:border-slate-300 bg-slate-100/60 text-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 flex items-center gap-1">
+                        <i className="fa-solid fa-bolt text-amber-500"></i> Metered Usage
+                      </span>
+                      {billingType === 'metered' && (
+                        <i className="fa-solid fa-check text-[10px] text-cyan-600" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500 leading-tight mt-1">
+                      Pay-as-you-go based on actual AI & API usage ($0.05/call).
+                    </span>
+                  </button>
                 </div>
+
+                {billingType === 'metered' && usageData && (
+                  <div className="mt-2 p-3 bg-white rounded-xl border border-cyan-200/60 shadow-2xs space-y-2 text-xs">
+                    <div className="flex items-center justify-between font-bold text-slate-800 border-b border-slate-100 pb-1.5">
+                      <span className="flex items-center gap-1.5">
+                        <i className="fa-solid fa-chart-line text-cyan-600"></i>
+                        Dodo Usage Meter Dashboard
+                      </span>
+                      <span className="text-[10px] text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded">
+                        Billing Cycle Active
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center py-1">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">API Calls</div>
+                        <div className="text-sm font-black text-slate-900">{usageData.apiCalls}</div>
+                      </div>
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">AI Queries</div>
+                        <div className="text-sm font-black text-slate-900">{usageData.aiQueries}</div>
+                      </div>
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">Messages</div>
+                        <div className="text-sm font-black text-slate-900">{usageData.messagesSent}</div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] text-slate-600 pt-1">
+                      <span>Free Allowance: {usageData.freeAllowance} units</span>
+                      <span>Rate: ${usageData.unitPrice}/call</span>
+                    </div>
+                    <div className="flex justify-between items-center font-black text-slate-900 pt-1.5 border-t border-slate-100">
+                      <span>Estimated Metered Charge:</span>
+                      <span className="text-cyan-700">${usageData.estimatedCharge.toFixed(2)} USD</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Delivery & License Recipient Email */}
@@ -751,22 +864,6 @@ Thank you for supporting Lumina Diary!`;
                     </>
                   )}
                 </button>
-
-                {/* Instant Sandbox Testing Action for fast evaluator review */}
-                <div className="flex items-center justify-between px-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const demoRef = `DODO-TEST-${Date.now()}`;
-                      handleSuccessfulPayment(demoRef);
-                    }}
-                    className="text-[10px] text-orange-700 hover:text-orange-900 font-bold underline cursor-pointer flex items-center gap-1"
-                  >
-                    <i className="fa-solid fa-bolt text-amber-500 text-[10px]"></i>
-                    Instant Dodo Sandbox Simulation
-                  </button>
-                  <span className="text-[10px] text-slate-400">Dodo Payments MoR Pop-up</span>
-                </div>
               </div>
 
               {/* Supported Payment Channels */}
@@ -896,15 +993,17 @@ Thank you for supporting Lumina Diary!`;
                 <span className="font-medium">Reference:</span>
                 <span className="font-mono text-slate-700 truncate max-w-[170px]">{transactionRef || 'DODO-TX-' + Date.now()}</span>
               </div>
-              <div className="flex justify-between items-center text-slate-600 text-[11px]">
-                <span className="font-medium">Product:</span>
-                <span className="font-bold text-slate-800">Lumina Diary Pro (Digital)</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-600 text-[11px]">
-                <span className="font-medium">Plan:</span>
-                <span className="font-bold text-orange-700">
-                  {billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}
-                </span>
+              <div className="flex items-center gap-2.5 p-2 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
+                <img
+                  src="/dodo-product-image.jpg"
+                  alt="Lumina Diary Pro Product Icon"
+                  className="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-100"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0 flex-1 text-slate-800">
+                  <div className="font-bold text-xs truncate">Lumina Diary Pro (Digital)</div>
+                  <div className="text-[10px] text-orange-700 font-semibold">{billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}</div>
+                </div>
               </div>
               <div className="flex justify-between items-center text-slate-600 text-[11px] truncate">
                 <span className="font-medium">Recipient:</span>

@@ -129,34 +129,55 @@ class DodoService {
     return null;
   }
 
+  async initializeMeteredPayment(params: { email: string; customerName?: string; ref?: string }) {
+    try {
+      const res = await fetch('/api/dodo/initialize-metered', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn('Dodo metered initialize error:', err);
+    }
+    return null;
+  }
+
   /**
    * Verifies payment status with the server
    */
   async verifyPayment(paymentId: string): Promise<DodoVerificationResult> {
     try {
       const res = await fetch(`/api/dodo/verify/${encodeURIComponent(paymentId)}`);
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.status === true || data.status === 'succeeded')) {
         return {
-          status: data.status === 'succeeded' || data.status === true,
+          status: true,
           paymentId: data.payment_id || paymentId,
-          state: data.status === 'succeeded' ? 'succeeded' : (data.state || 'succeeded'),
+          state: 'succeeded',
           amount: data.total_amount || data.amount,
           currency: data.currency || 'USD',
-          customerEmail: data.customer?.email
+          customerEmail: data.customer?.email,
+          message: data.message
         };
       }
-    } catch (err) {
+      return {
+        status: false,
+        paymentId,
+        state: data.state || 'failed',
+        message: data.message || 'Payment transaction was not verified as successful on Dodo Payments.'
+      };
+    } catch (err: any) {
       console.warn('Dodo server verification error:', err);
+      return {
+        status: false,
+        paymentId,
+        state: 'failed',
+        message: 'Could not connect to payment gateway to verify transaction.'
+      };
     }
-
-    return {
-      status: true,
-      paymentId,
-      state: 'succeeded',
-      amount: 250,
-      currency: 'USD'
-    };
   }
 
   /**
@@ -222,7 +243,6 @@ class DodoService {
           paymentId: paymentId,
           paymentLink: paymentLink,
           onSuccess: () => {
-            trialService.markPaid(options.billingType);
             options.onSuccess(paymentId);
           },
           onClose: () => {
@@ -433,38 +453,52 @@ class DodoService {
       bioTitle.innerText = 'Recognizing Face ID / Touch ID...';
       bioSubtitle.innerText = 'Verifying encrypted biometric token with Apple Secure Element...';
 
-      try {
-        // Attempt fast server verification with Dodo backend
-        await this.verifyPayment(paymentId);
-      } catch (e) {
-        console.warn('Dodo Apple Pay verification check completed:', e);
-      }
+      this.verifyPayment(paymentId).then((verification) => {
+        if (verification.status && verification.state === 'succeeded') {
+          // Biometric success state
+          bioIconWrap.style.animation = 'none';
+          bioIconWrap.style.background = '#30D158';
+          bioIconWrap.style.borderColor = '#30D158';
+          bioIcon.innerText = '✓';
+          bioIcon.style.color = '#FFFFFF';
+          bioIcon.style.fontWeight = '900';
 
-      setTimeout(() => {
-        // Biometric success state
-        bioIconWrap.style.animation = 'none';
-        bioIconWrap.style.background = '#30D158';
-        bioIconWrap.style.borderColor = '#30D158';
-        bioIcon.innerText = '✓';
-        bioIcon.style.color = '#FFFFFF';
-        bioIcon.style.fontWeight = '900';
+          bioTitle.innerText = 'Done  Apple Pay Authorized';
+          bioTitle.style.color = '#30D158';
+          bioSubtitle.innerText = 'Payment processed securely by Dodo Payments MoR.';
 
-        bioTitle.innerText = 'Done  Apple Pay Authorized';
-        bioTitle.style.color = '#30D158';
-        bioSubtitle.innerText = 'Payment processed securely by Dodo Payments MoR.';
+          authBtn.style.background = '#30D158';
+          authBtn.style.color = '#FFFFFF';
+          authBtn.innerHTML = `<span>✓ Payment Complete</span>`;
 
-        authBtn.style.background = '#30D158';
-        authBtn.style.color = '#FFFFFF';
-        authBtn.innerHTML = `<span>✓ Payment Complete</span>`;
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onSuccess(paymentId);
+          }, 500);
+        } else {
+          bioIconWrap.style.animation = 'none';
+          bioIconWrap.style.background = '#FF3B30';
+          bioIconWrap.style.borderColor = '#FF3B30';
+          bioIcon.innerText = '✕';
+          bioIcon.style.color = '#FFFFFF';
 
-        // Immediately unlock premium permanently
-        trialService.markPaid(options.billingType);
+          bioTitle.innerText = 'Payment Not Completed';
+          bioTitle.style.color = '#FF3B30';
+          bioSubtitle.innerText = verification.message || 'Payment transaction was not successful. Premium access was not granted.';
 
-        setTimeout(() => {
-          if (document.body.contains(overlay)) document.body.removeChild(overlay);
-          options.onSuccess(paymentId);
-        }, 650);
-      }, 950);
+          authBtn.style.background = '#FF3B30';
+          authBtn.style.color = '#FFFFFF';
+          authBtn.innerHTML = `<span>✕ Transaction Incomplete</span>`;
+
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onError(verification.message || 'Payment transaction failed or was not completed.');
+          }, 1000);
+        }
+      }).catch(() => {
+        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+        options.onError('Payment transaction could not be verified.');
+      });
     });
   }
 
@@ -694,53 +728,85 @@ class DodoService {
       }
     });
 
-    // Execute Apple Pay Checkout reliably with Face ID / Touch ID authorization
-    appleBtn?.addEventListener('click', () => {
+    // Execute Apple Pay Checkout
+    appleBtn?.addEventListener('click', async () => {
       appleBtn.disabled = true;
       appleBtn.innerHTML = `
         <span style="font-size: 18px;"></span>
-        <span>Confirming with Face ID / Touch ID...</span>
+        <span>Verifying Apple Pay...</span>
       `;
 
-      // Smooth, reliable authorization without unverified native sheet cancellations
-      setTimeout(() => {
-        appleBtn.innerHTML = `
-          <span style="color: #4ADE80; font-size: 18px;">✓</span>
-          <span>Apple Pay Authorized</span>
-        `;
-        // Immediately mark premium active
-        trialService.markPaid(options.billingType);
-
-        setTimeout(() => {
-          if (document.body.contains(overlay)) document.body.removeChild(overlay);
-          options.onSuccess(paymentId);
-        }, 500);
-      }, 850);
+      try {
+        const verification = await this.verifyPayment(paymentId);
+        if (verification.status && verification.state === 'succeeded') {
+          appleBtn.innerHTML = `<span style="color: #4ADE80; font-size: 18px;">✓</span><span>Apple Pay Approved</span>`;
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onSuccess(paymentId);
+          }, 450);
+        } else {
+          appleBtn.innerHTML = `<span style="color: #F87171;">✕ Not Verified</span>`;
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onError(verification.message || 'Payment transaction was not successful. Premium access was not granted.');
+          }, 750);
+        }
+      } catch (err) {
+        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+        options.onError('Payment transaction could not be verified.');
+      }
     });
 
     // Execute Card Checkout
-    cardPayBtn?.addEventListener('click', () => {
+    cardPayBtn?.addEventListener('click', async () => {
       cardPayBtn.disabled = true;
-      cardPayBtn.innerHTML = `<span>Processing via Dodo Payments...</span>`;
-      trialService.markPaid(options.billingType);
-      setTimeout(() => {
+      cardPayBtn.innerHTML = `<span>Verifying Card Payment...</span>`;
+      
+      try {
+        const verification = await this.verifyPayment(paymentId);
+        if (verification.status && verification.state === 'succeeded') {
+          cardPayBtn.innerHTML = `<span style="color: #4ADE80;">✓ Card Approved</span>`;
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onSuccess(paymentId);
+          }, 450);
+        } else {
+          cardPayBtn.innerHTML = `<span style="color: #F87171;">✕ Not Verified</span>`;
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onError(verification.message || 'Payment transaction was not successful. Premium access was not granted.');
+          }, 750);
+        }
+      } catch (err) {
         if (document.body.contains(overlay)) document.body.removeChild(overlay);
-        options.onSuccess(paymentId);
-      }, 800);
+        options.onError('Payment transaction could not be verified.');
+      }
     });
 
     // Execute Google Pay Checkout
-    gpayBtn?.addEventListener('click', () => {
+    gpayBtn?.addEventListener('click', async () => {
       gpayBtn.disabled = true;
-      gpayBtn.innerHTML = `<span>Authorizing Google Pay...</span>`;
-      trialService.markPaid(options.billingType);
-      setTimeout(() => {
-        gpayBtn.innerHTML = `<span style="color: #4ADE80; font-size: 16px;">✓</span><span>GPay Approved</span>`;
-        setTimeout(() => {
-          if (document.body.contains(overlay)) document.body.removeChild(overlay);
-          options.onSuccess(paymentId);
-        }, 400);
-      }, 700);
+      gpayBtn.innerHTML = `<span>Verifying Google Pay...</span>`;
+      
+      try {
+        const verification = await this.verifyPayment(paymentId);
+        if (verification.status && verification.state === 'succeeded') {
+          gpayBtn.innerHTML = `<span style="color: #4ADE80; font-size: 16px;">✓</span><span>GPay Approved</span>`;
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onSuccess(paymentId);
+          }, 400);
+        } else {
+          gpayBtn.innerHTML = `<span style="color: #F87171;">✕ Not Verified</span>`;
+          setTimeout(() => {
+            if (document.body.contains(overlay)) document.body.removeChild(overlay);
+            options.onError(verification.message || 'Payment transaction was not successful. Premium access was not granted.');
+          }, 750);
+        }
+      } catch (err) {
+        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+        options.onError('Payment transaction could not be verified.');
+      }
     });
 
     failBtn?.addEventListener('click', () => {

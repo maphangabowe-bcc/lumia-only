@@ -508,6 +508,101 @@ Guidelines:
     });
   });
 
+  // --- DODO METERED USAGE BILLING ROUTES ---
+  const customerUsageStore = new Map<string, any>();
+
+  app.get("/api/dodo/usage/:customerId", (req, res) => {
+    const { customerId } = req.params;
+    const usage = customerUsageStore.get(customerId) || {
+      apiCalls: 12,
+      aiQueries: 5,
+      messagesSent: 8,
+      billingCycleStart: new Date().toISOString(),
+      nextBillingDate: new Date(Date.now() + 30*24*60*60*1000).toISOString(),
+      unitPrice: 0.05,
+      freeAllowance: 50,
+      estimatedCharge: 0.00,
+      currency: "USD"
+    };
+    res.json({ status: true, usage });
+  });
+
+  app.post("/api/dodo/usage/report", (req, res) => {
+    const { customerId, usage } = req.body;
+    if (customerId && usage) {
+      customerUsageStore.set(customerId, usage);
+      console.log("Dodo Metered Usage Reported for customer:", customerId, usage);
+    }
+    res.json({ status: true, recorded: true });
+  });
+
+  app.post("/api/dodo/initialize-metered", async (req, res) => {
+    const { email, customerName, ref } = req.body;
+    if (!email) {
+      return res.status(400).json({ status: false, message: "Email is required for metered billing" });
+    }
+
+    const apiKey = process.env.DODO_PAYMENTS_API_KEY;
+    const environment = process.env.DODO_PAYMENTS_ENVIRONMENT || "live_mode";
+    const baseUrl = environment === "live_mode" 
+      ? "https://live.dodopayments.com" 
+      : "https://test.dodopayments.com";
+
+    const paymentId = ref || `dodo_metered_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+
+    if (apiKey) {
+      try {
+        const response = await fetch(`${baseUrl}/payments`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            billing: { city: "New York", country: "US", state: "NY", street: "Broadway", zipcode: "10001" },
+            customer: { email: email.trim(), name: customerName || email.split("@")[0] },
+            payment_link: true,
+            product_cart: [
+              {
+                product_id: "prod_lumina_metered",
+                quantity: 1,
+                amount: 100 // $1.00 base metered activation / authorization charge
+              }
+            ],
+            return_url: "https://lumina-diary.app",
+            metadata: {
+              product_name: "Lumina Diary Pro (Metered Pay-As-You-Go)",
+              billing_type: "metered_usage",
+              rate_per_unit: "$0.05 per API call / AI query after 50 free allowance"
+            }
+          })
+        });
+        const data = await response.json();
+        if (response.ok && data && (data.payment_link || data.payment_id)) {
+          return res.json({
+            status: true,
+            payment_id: data.payment_id || paymentId,
+            payment_link: data.payment_link,
+            isLiveSession: environment === "live_mode",
+            environment,
+            data
+          });
+        }
+      } catch (err) {
+        console.error("Dodo metered init error:", err);
+      }
+    }
+
+    res.json({
+      status: true,
+      payment_id: paymentId,
+      isLiveSession: environment === "live_mode",
+      environment,
+      mode: "embedded",
+      message: "Dodo Metered Pay-As-You-Go session initialized"
+    });
+  });
+
   // Initialize Dodo Payment
   app.post("/api/dodo/initialize", async (req, res) => {
     const { email, amount, currency = "USD", billingType = "manual", callbackUrl, customerName, ref } = req.body;
@@ -590,7 +685,10 @@ Guidelines:
     });
   });
 
-  // Verify Dodo Payment
+  // Store verified successful transactions from Dodo Payments
+  const verifiedPayments = new Map<string, any>();
+
+  // Verify Dodo Payment - Strictly checks transaction success
   app.get("/api/dodo/verify/:paymentId", async (req, res) => {
     const { paymentId } = req.params;
     const apiKey = process.env.DODO_PAYMENTS_API_KEY;
@@ -599,6 +697,25 @@ Guidelines:
       ? "https://live.dodopayments.com" 
       : "https://test.dodopayments.com";
 
+    if (!paymentId) {
+      return res.status(400).json({ status: false, state: "failed", message: "Payment ID is required" });
+    }
+
+    // 1. Check if transaction was verified via Dodo webhook
+    if (verifiedPayments.has(paymentId)) {
+      const cached = verifiedPayments.get(paymentId);
+      return res.json({
+        status: true,
+        payment_id: paymentId,
+        state: "succeeded",
+        total_amount: cached.amount,
+        currency: cached.currency,
+        customer: cached.customer,
+        message: "Payment transaction verified as successful via Dodo Payments"
+      });
+    }
+
+    // 2. Query Dodo Payments API directly to verify transaction status
     if (apiKey) {
       try {
         const response = await fetch(`${baseUrl}/payments/${encodeURIComponent(paymentId)}`, {
@@ -608,37 +725,77 @@ Guidelines:
           }
         });
         const data = await response.json();
+        
         if (response.ok && data) {
-          return res.json({
-            status: data.status === "succeeded",
+          const isSuccess = data.status === "succeeded" || data.status === "successful" || data.status === "paid" || data.status === "completed";
+          if (isSuccess) {
+            verifiedPayments.set(paymentId, {
+              status: "succeeded",
+              amount: data.total_amount,
+              currency: data.currency,
+              customer: data.customer
+            });
+            return res.json({
+              status: true,
+              payment_id: paymentId,
+              state: "succeeded",
+              total_amount: data.total_amount,
+              currency: data.currency,
+              customer: data.customer,
+              data
+            });
+          } else {
+            return res.status(400).json({
+              status: false,
+              payment_id: paymentId,
+              state: data.status || "unsuccessful",
+              message: `Payment transaction is ${data.status || "incomplete"}. Premium access was not granted.`
+            });
+          }
+        } else {
+          return res.status(400).json({
+            status: false,
             payment_id: paymentId,
-            total_amount: data.total_amount,
-            currency: data.currency,
-            customer: data.customer,
-            data
+            state: "not_found",
+            message: data?.message || "Payment transaction could not be found or verified on Dodo Payments. Premium access was not granted."
           });
         }
       } catch (err: any) {
         console.error("Dodo server verify error:", err);
+        return res.status(500).json({
+          status: false,
+          payment_id: paymentId,
+          state: "error",
+          message: "Failed to connect to Dodo Payments gateway for transaction verification."
+        });
       }
     }
 
-    res.json({
-      status: "succeeded",
+    // If API key is missing or verification cannot be performed, refuse access
+    return res.status(403).json({
+      status: false,
       payment_id: paymentId,
-      total_amount: 250,
-      currency: "USD",
-      environment,
-      message: environment === "live_mode" 
-        ? "Payment verified successfully via Dodo Payments Live MoR"
-        : "Payment verified successfully via Dodo Payments MoR"
+      state: "unverified",
+      message: "Payment transaction could not be verified on Dodo Payments. Premium access was not granted."
     });
   });
 
   // Dodo Webhook Handler
   app.post("/api/dodo/webhook", (req, res) => {
     const event = req.body;
-    console.log("Dodo Payments Webhook Received:", event?.type, event?.data?.payment_id);
+    const type = event?.type || event?.event;
+    const paymentId = event?.data?.payment_id || event?.data?.id || event?.payment_id;
+    console.log("Dodo Payments Webhook Received:", type, paymentId);
+
+    if (paymentId && (type === "payment.succeeded" || type === "payment.paid" || type === "payment.successful")) {
+      verifiedPayments.set(paymentId, {
+        status: "succeeded",
+        amount: event?.data?.total_amount || event?.data?.amount,
+        currency: event?.data?.currency,
+        customer: event?.data?.customer,
+        verifiedAt: new Date().toISOString()
+      });
+    }
     res.sendStatus(200);
   });
 
