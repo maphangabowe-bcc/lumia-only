@@ -277,26 +277,8 @@ const App: React.FC = () => {
       }
     });
 
-    // Check for payment return callback or shared entry link
+    // Check for shared entry link
     const params = new URLSearchParams(window.location.search);
-    const paymentId = params.get('payment_id') || params.get('paymentId') || params.get('dodo_ref');
-    if (paymentId) {
-      fetch(`/api/dodo/verify/${encodeURIComponent(paymentId)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.status === true || data.status === 'succeeded') {
-            handleUnlockPremium('manual');
-            triggerToast('🎉 Payment verified! Lumina Premium activated.', 'success');
-          } else {
-            triggerToast('Payment was not completed. Premium remains locked.', 'error');
-          }
-        })
-        .catch(() => {
-          triggerToast('Could not verify payment transaction status.', 'error');
-        });
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
-    }
 
     const viewCode = params.get('view');
     if (viewCode) {

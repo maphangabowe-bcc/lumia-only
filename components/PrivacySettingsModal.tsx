@@ -428,17 +428,9 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                   </div>
                 </div>
 
+
                 {trialInfo?.isPaid && (
                   <div className="pt-2.5 border-t border-slate-200/60 space-y-2">
-                    {(localStorage.getItem('lumina_dodo_ref') || localStorage.getItem('lumina_payment_ref')) && (
-                      <div className="flex items-center justify-between text-[10px] bg-white px-2.5 py-1 rounded-xl border border-slate-200/60 font-mono">
-                        <span className="text-slate-500 font-sans font-medium flex items-center gap-1">
-                          <i className="fa-solid fa-receipt text-[9px] text-orange-600"></i>
-                          Dodo Ref:
-                        </span>
-                        <span className="text-slate-700 font-bold truncate max-w-[150px]">{localStorage.getItem('lumina_dodo_ref') || localStorage.getItem('lumina_payment_ref')}</span>
-                      </div>
-                    )}
                     {/* Billing Preference Selector (Auto-Billed Each Year vs Pay Manually) */}
                     <div className="pt-1.5 space-y-1.5">
                       <div className="flex items-center justify-between text-[10px]">

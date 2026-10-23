@@ -6,8 +6,7 @@
       "name": "lumina-diary",
       "dependencies": {
         "@google/genai": "^1.40.0",
-        "@paypal/react-paypal-js": "^10.0.0",
-        "@paystack/inline-js": "^2.26.0",
+        "@paypal/react-paypal-js": "^10.6.0",
         "express": "^5.2.1",
         "firebase": "^12.14.0",
         "jimp": "^1.6.1",
@@ -283,13 +282,11 @@
 
     "@napi-rs/lzma-linux-x64-gnu": ["@napi-rs/lzma-linux-x64-gnu@1.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ=="],
 
-    "@paypal/paypal-js": ["@paypal/paypal-js@11.2.0", "", { "dependencies": { "promise-polyfill": "^8.3.0" } }, "sha512-/qFVbiz/+9W8bW680g5M72cftZBvpSL7RKnPx5YLxgncjJKZovCL2FbW2Y2s5Jn/zZvrCJIL4TcVztPFOk6aJA=="],
+    "@paypal/paypal-js": ["@paypal/paypal-js@11.3.0", "", { "dependencies": { "promise-polyfill": "^8.3.0" } }, "sha512-Sn0M20QICbV8AeVcMvwQ1QWDX/JaxPgLsxrUFUshYC/W3gMVUZXlpmO/6z3JOhrhk9PU4HZLTYb/F0A/xMwHVw=="],
 
-    "@paypal/react-paypal-js": ["@paypal/react-paypal-js@10.5.2", "", { "dependencies": { "@paypal/paypal-js": "^11.2.0", "@paypal/sdk-constants": "^1.0.122", "server-only": "^0.0.1" }, "peerDependencies": { "react": "^16.8.0 || ^17 || ^18 || ^19", "react-dom": "^16.8.0 || ^17 || ^18 || ^19" } }, "sha512-hZ5qsZsgMpuSbs8DZyoWRICRapcUFBZIa8OxncE/TbBNT6mlW0gVzEFLQUQRS39ViCjuzUR3wPh8lasMfcxQXg=="],
+    "@paypal/react-paypal-js": ["@paypal/react-paypal-js@10.6.0", "", { "dependencies": { "@paypal/paypal-js": "^11.2.1", "@paypal/sdk-constants": "^1.0.122", "server-only": "^0.0.1" }, "peerDependencies": { "react": "^16.8.0 || ^17 || ^18 || ^19", "react-dom": "^16.8.0 || ^17 || ^18 || ^19" } }, "sha512-oBf/5EsmHTvNho8U25z/SJkU82eGoWEfogVHBd7K0Bf91hOPuM9brx3bwbP87j+45/M/S91SyVTavEKpBKxWVA=="],
 
     "@paypal/sdk-constants": ["@paypal/sdk-constants@1.0.158", "", { "dependencies": { "hi-base32": "^0.5.0" } }, "sha512-OrX2kN4gsBl6fG1GS1ewsNk7TTqYmdtUMVaJ+wAzPhsv9M7dfni95WuJdt4pMALOo5ioZeJ05a16BUSca5IC+Q=="],
-
-    "@paystack/inline-js": ["@paystack/inline-js@2.26.0", "", {}, "sha512-3R1ewkV/zQ/zlIkKry7AQyzeXmTmmXxiDIY/52zFXySfmiwxv3OQ2lozxxIEY5Zw2kqfB7WVjhqQY1RcB4i0wQ=="],
 
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
 

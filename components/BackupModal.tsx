@@ -226,10 +226,10 @@ const BackupModal: React.FC<BackupModalProps> = ({
                 onClose();
                 onUpgradeClick();
               }}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md shadow-cyan-100 flex items-center justify-center gap-2 cursor-pointer transition-all"
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-[#003087] to-[#0070BA] hover:from-[#00256c] hover:to-[#005a96] active:scale-95 text-white font-black text-xs rounded-xl shadow-md shadow-blue-100 flex items-center justify-center gap-2 cursor-pointer transition-all"
             >
-              <i className="fa-solid fa-crown text-amber-300"></i>
-              <span>Unlock Premium ($2.50 via Dodo)</span>
+              <i className="fa-brands fa-paypal text-[#00E5FF]"></i>
+              <span>Unlock Premium ($2.50 via PayPal)</span>
             </button>
             <button
               type="button"

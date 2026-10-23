@@ -334,10 +334,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onUpgradeClick();
                 if (onCloseMobile) onCloseMobile();
               }}
-              className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-orange-900/40 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+              className="w-full bg-gradient-to-r from-[#003087] via-[#0070BA] to-indigo-600 hover:from-[#00256c] hover:to-indigo-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-blue-900/30 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
             >
-              <span className="text-xs">🦤</span>
-              <span>{trialInfo?.isCancelled ? 'Reactivate ($2.50 via Dodo)' : 'Pay $2.50 with Dodo'}</span>
+              <i className="fa-brands fa-paypal text-[#00E5FF] text-xs"></i>
+              <span>{trialInfo?.isCancelled ? 'Reactivate ($2.50 via PayPal)' : 'Upgrade ($2.50 via PayPal)'}</span>
             </button>
           </div>
         )}

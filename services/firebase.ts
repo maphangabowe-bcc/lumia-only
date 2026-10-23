@@ -1,11 +1,21 @@
-import { initializeApp } from 'firebase/app';
+import { getApps, getApp, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-// Get firestore database. If firestoreDatabaseId is in config, use it; otherwise let Firestore use the default
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// Initialize Firestore with long-polling to prevent backend connection timeouts in sandboxed browser environments
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+  }, (firebaseConfig as any).firestoreDatabaseId);
+} catch {
+  firestoreDb = getFirestore(app);
+}
+
+export const db = firestoreDb;
 export const auth = getAuth(app);
 
 export enum OperationType {
@@ -31,7 +41,7 @@ export interface FirestoreErrorInfo {
       providerId?: string | null;
       email?: string | null;
     }[];
-  }
+  };
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -54,19 +64,3 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-// Test connection on boot to validate setup as required by the Firebase Integration Skill
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        console.log("Firebase is operating in offline mode. Your offline sanctuary is active.");
-      } else {
-        console.warn("Please check your Firebase configuration.");
-      }
-    }
-  }
-}
-testConnection();
