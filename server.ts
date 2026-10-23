@@ -514,13 +514,48 @@ Guidelines:
 
   const paypalOrders = new Map<string, PayPalOrderRecord>();
 
+  // PayPal Server-Side Credentials & OAuth Token Helper
+  async function getPayPalAccessToken(): Promise<{ token: string; baseUrl: string } | null> {
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret || clientId === 'test') {
+      return null;
+    }
+
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    
+    // Check sandbox first, then live
+    for (const baseUrl of ['https://api-m.sandbox.paypal.com', 'https://api-m.paypal.com']) {
+      try {
+        const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: 'grant_type=client_credentials'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return { token: data.access_token, baseUrl };
+        }
+      } catch (e) {
+        // try next
+      }
+    }
+    return null;
+  }
+
   // 1. Get PayPal Configuration
   app.get("/api/paypal/config", (_req, res) => {
     const clientId = process.env.PAYPAL_CLIENT_ID || "test";
+    const hasSecret = Boolean(process.env.PAYPAL_CLIENT_SECRET);
     res.json({
       clientId,
       currency: "USD",
       isSandbox: !process.env.PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID === "test" || process.env.PAYPAL_CLIENT_ID === "sb",
+      hasSecret,
       gateway: "PayPal Payments Standard & Smart Buttons",
       version: "v2"
     });
@@ -530,8 +565,46 @@ Guidelines:
   app.post("/api/paypal/create-order", async (req, res) => {
     try {
       const { amount = 2.50, currency = "USD", billingType = "manual", customerEmail } = req.body;
+      const paypalAuth = await getPayPalAccessToken();
+
+      if (paypalAuth) {
+        try {
+          const createRes = await fetch(`${paypalAuth.baseUrl}/v2/checkout/orders`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${paypalAuth.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              intent: 'CAPTURE',
+              purchase_units: [{
+                description: `Lumina Diary Pro (${billingType === 'auto' ? 'Annual Subscription' : '1-Year Pass'})`,
+                amount: {
+                  currency_code: String(currency).toUpperCase(),
+                  value: Number(amount).toFixed(2)
+                }
+              }]
+            })
+          });
+
+          if (createRes.ok) {
+            const data = await createRes.json();
+            return res.json({
+              id: data.id,
+              orderId: data.id,
+              status: data.status,
+              amount: Number(amount),
+              currency: String(currency).toUpperCase(),
+              billingType,
+              customerEmail: customerEmail || ""
+            });
+          }
+        } catch (apiErr) {
+          console.warn("Direct PayPal order creation API warning, falling back:", apiErr);
+        }
+      }
+
       const orderId = `PAYPAL-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-      
       res.json({
         id: orderId,
         orderId,
@@ -556,12 +629,32 @@ Guidelines:
         return res.status(400).json({ success: false, message: "PayPal Order ID is required." });
       }
 
-      const captureId = details?.id || `CAP-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      let capturedDetails = details;
+      const paypalAuth = await getPayPalAccessToken();
+
+      if (paypalAuth && orderId && !orderId.startsWith("PAYPAL-")) {
+        try {
+          const captureRes = await fetch(`${paypalAuth.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${paypalAuth.token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (captureRes.ok) {
+            capturedDetails = await captureRes.json();
+          }
+        } catch (capErr) {
+          console.warn("PayPal capture call fallback:", capErr);
+        }
+      }
+
+      const captureId = capturedDetails?.id || `CAP-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
       const receiptNumber = `PAYPAL-RCPT-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const payerName = details?.payer?.name?.given_name 
-        ? `${details.payer.name.given_name} ${details.payer.name.surname || ''}`.trim() 
+      const payerName = capturedDetails?.payer?.name?.given_name 
+        ? `${capturedDetails.payer.name.given_name} ${capturedDetails.payer.name.surname || ''}`.trim() 
         : (customerEmail ? customerEmail.split('@')[0] : 'Lumina Supporter');
-      const payerEmail = details?.payer?.email_address || customerEmail || 'supporter@paypal.com';
+      const payerEmail = capturedDetails?.payer?.email_address || customerEmail || 'supporter@paypal.com';
 
       const orderRecord: PayPalOrderRecord = {
         orderId,
