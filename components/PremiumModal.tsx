@@ -42,7 +42,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   userEmail = '',
   trialInfo
 }) => {
-  const [step, setStep] = useState<'info' | 'success'>('info');
+  const [step, setStep] = useState<'checkout' | 'success'>('checkout');
   const [billingType, setBillingType] = useState<'manual' | 'auto'>('manual');
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [receiptEmail, setReceiptEmail] = useState(userEmail || 'maphangabowe@gmail.com');
@@ -50,6 +50,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [paypalResult, setPaypalResult] = useState<PayPalCaptureResult | null>(null);
+  const [showSandboxFallback, setShowSandboxFallback] = useState(false);
 
   if (!isOpen) return null;
 
@@ -63,7 +64,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     setStep('success');
   };
 
-  // Fallback direct approval for sandbox iframe environments with popup blockers
+  // Fallback direct approval for sandbox iframe environments where popups are blocked
   const handleDirectSandboxApproval = async () => {
     setIsProcessing(true);
     setErrorMessage('');
@@ -106,12 +107,11 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const handleCopyReceipt = () => {
     if (!paypalResult) return;
     const cur = CURRENCIES[currency];
-    const receiptText = `LUMINA DIARY PRO - PAYPAL OFFICIAL RECEIPT
+    const receiptText = `LUMINA DIARY PRO - OFFICIAL PAYPAL RECEIPT
 ------------------------------------------------
-Gateway: PayPal Smart Payment Buttons (@paypal/react-paypal-js)
-Client ID: ${PAYPAL_CLIENT_ID}
-PayPal Order ID: ${paypalResult.orderId}
-Capture Reference: ${paypalResult.captureId}
+Gateway: PayPal Official Checkout
+Transaction Reference: ${paypalResult.orderId}
+Capture ID: ${paypalResult.captureId}
 Receipt Number: ${paypalResult.receiptNumber}
 Status: COMPLETED & VERIFIED
 Product: Lumina Diary Pro (Digital Edition)
@@ -119,7 +119,7 @@ Plan: ${billingType === 'auto' ? 'Annual Subscription ($2.50/yr)' : '1-Year Digi
 Amount: ${cur.symbol}${paypalResult.amount.toFixed(2)} ${paypalResult.currency}
 Payer: ${paypalResult.payerName} (${paypalResult.payerEmail})
 Date: ${new Date(paypalResult.timestamp).toLocaleString()}
-Buyer Protection: Covered under PayPal Buyer Protection
+Security: 256-Bit SSL • PayPal Buyer Protection
 ------------------------------------------------
 Thank you for supporting Lumina Diary!`;
 
@@ -131,20 +131,20 @@ Thank you for supporting Lumina Diary!`;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="bg-white w-full max-w-xl rounded-[28px] sm:rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[94vh]"
+          exit={{ opacity: 0, scale: 0.96, y: 12 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="bg-white w-full max-w-2xl rounded-[28px] sm:rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] my-auto"
         >
-          {step === 'info' && (
+          {step === 'checkout' && (
             <>
               {/* Header Banner */}
-              <div className="bg-gradient-to-tr from-[#003087] via-[#0070BA] to-indigo-800 p-5 sm:p-6 text-white relative overflow-hidden shrink-0">
-                <div className="absolute top-0 right-0 -mt-6 -mr-6 w-36 h-36 bg-sky-400/20 rounded-full blur-2xl pointer-events-none" />
-                <div className="absolute -bottom-8 -left-8 w-44 h-44 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="bg-gradient-to-r from-[#002c6c] via-[#004b99] to-[#0070ba] px-5 py-4 sm:px-6 sm:py-5 text-white relative overflow-hidden shrink-0">
+                <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-sky-300/15 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute -bottom-8 -left-8 w-40 h-40 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
                 
                 <button 
                   onClick={onClose}
@@ -155,28 +155,41 @@ Thank you for supporting Lumina Diary!`;
                   <i className="fa-solid fa-xmark text-sm"></i>
                 </button>
 
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] sm:text-xs font-black uppercase tracking-wider mb-2 border border-white/15">
-                  <i className="fa-brands fa-paypal text-[#00E5FF] text-[11px]"></i> PayPal Secured Gateway
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-black uppercase tracking-wider border border-white/20">
+                    <i className="fa-brands fa-paypal text-[#00E5FF] text-[11px]"></i>
+                    <span>PayPal Secure Checkout</span>
+                  </div>
+                  <span className="text-[10px] text-white/75 font-semibold hidden sm:inline-flex items-center gap-1">
+                    <i className="fa-solid fa-shield-halved text-emerald-400 text-[10px]"></i> Buyer Protection
+                  </span>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight">
-                  Lumina Diary Pro Edition
-                </h2>
-                <p className="text-white/90 text-xs sm:text-sm mt-1 max-w-md leading-relaxed">
-                  Unlock unlimited journal entries, mood analytics, and cloud sync via PayPal.
-                </p>
+
+                <div className="flex items-baseline justify-between pr-8">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-black tracking-tight text-white leading-tight">
+                      Upgrade to Lumina Pro
+                    </h2>
+                    <p className="text-white/85 text-xs mt-0.5 max-w-md font-medium">
+                      Infinite journaling sanctuary, deep emotion analytics, and instant cloud sync.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Scrollable Content Body */}
+              {/* Scrollable Checkout Content */}
               <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5">
+                
+                {/* Active Membership Banner (if already paid) */}
                 {trialInfo && trialInfo.isPaid && (
-                  <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 flex items-start justify-between gap-3 shadow-xs">
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-200">
-                        <i className="fa-solid fa-crown text-sm"></i>
+                  <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3 flex items-start justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200">
+                        <i className="fa-solid fa-crown text-xs"></i>
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-emerald-950">Lumina Premium is Active</h4>
-                        <p className="text-[11px] text-emerald-800/80 mt-0.5">You currently have full unlimited access across all features.</p>
+                        <h4 className="text-xs font-black text-emerald-950">Lumina Pro is Active</h4>
+                        <p className="text-[11px] text-emerald-800/80">You currently have full unlimited access.</p>
                       </div>
                     </div>
                     <button
@@ -185,45 +198,84 @@ Thank you for supporting Lumina Diary!`;
                         trialService.cancelPremium();
                         onClose();
                       }}
-                      className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-white border border-rose-200 px-2.5 py-1.5 rounded-xl transition-all hover:bg-rose-50 cursor-pointer shrink-0"
+                      className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-white border border-rose-200 px-2.5 py-1 rounded-xl transition-all hover:bg-rose-50 cursor-pointer shrink-0"
                     >
-                      Cancel Membership
+                      Manage Plan
                     </button>
                   </div>
                 )}
 
-                {/* Visual Showcase Banner */}
-                <div className="relative rounded-2xl overflow-hidden shadow-md border border-slate-200/80 group bg-slate-900">
+                {/* Compact Product Banner */}
+                <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-200/80 bg-slate-900 h-28 sm:h-36">
                   <img
-                    src="/src/assets/images/premium_features_2048_1792660438152.jpg"
-                    alt="Lumina Diary Pro Premium Features"
-                    className="w-full h-auto object-cover group-hover:scale-[1.01] transition-transform duration-300"
+                    src="/lumina-product-image.jpg"
+                    alt="Lumina Diary Pro Features"
+                    className="w-full h-full object-cover object-center"
                     referrerPolicy="no-referrer"
                     loading="lazy"
                   />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-3 sm:p-4">
+                    <div className="flex items-center justify-between w-full text-white">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="text-xs font-bold">Lumina Diary Pro Digital Edition</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-sky-300">
+                        Instant Cloud Unlock
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Key Benefits Grid */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
+                    <i className="fa-solid fa-infinity text-cyan-600 text-sm mb-1"></i>
+                    <div className="text-[11px] font-black text-slate-800">Unlimited</div>
+                    <div className="text-[9px] text-slate-400 font-medium">Entries & Photos</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
+                    <i className="fa-solid fa-chart-line text-indigo-600 text-sm mb-1"></i>
+                    <div className="text-[11px] font-black text-slate-800">AI Trends</div>
+                    <div className="text-[9px] text-slate-400 font-medium">Mood Analytics</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
+                    <i className="fa-solid fa-cloud-arrow-up text-sky-600 text-sm mb-1"></i>
+                    <div className="text-[11px] font-black text-slate-800">Cloud Sync</div>
+                    <div className="text-[9px] text-slate-400 font-medium">Safe Backups</div>
+                  </div>
                 </div>
 
                 {/* Plan Selection */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    Select Your Plan Option
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Choose Plan
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">One-click checkout</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
                         setBillingType('manual');
                         setErrorMessage('');
                       }}
-                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
                         billingType === 'manual'
-                          ? 'border-[#0070BA] bg-sky-50/60 ring-2 ring-sky-200'
+                          ? 'border-[#0070BA] bg-sky-50/60 ring-2 ring-sky-300/70 shadow-xs'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
-                      <div className="text-xs font-black text-slate-900">1-Year Pass</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">One-time payment via PayPal</div>
-                      <div className="text-sm font-black text-[#003087] mt-1">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-black text-slate-900">1-Year Pass</div>
+                        {billingType === 'manual' && (
+                          <i className="fa-solid fa-circle-check text-sky-600 text-xs"></i>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">One-time payment • No recurring charges</div>
+                      <div className="text-sm font-black text-[#003087] mt-1.5">
                         {activeCurrency.symbol}{activeCurrency.amount.toFixed(2)}
                       </div>
                     </button>
@@ -236,17 +288,19 @@ Thank you for supporting Lumina Diary!`;
                       }}
                       className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
                         billingType === 'auto'
-                          ? 'border-[#0070BA] bg-sky-50/60 ring-2 ring-sky-200'
+                          ? 'border-[#0070BA] bg-sky-50/60 ring-2 ring-sky-300/70 shadow-xs'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
                       <span className="absolute top-2 right-2 text-[8px] font-extrabold uppercase bg-[#0070BA] text-white px-1.5 py-0.5 rounded-full">
                         Recommended
                       </span>
-                      <div className="text-xs font-black text-slate-900">Annual Sub</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">Renews annually • Cancel anytime</div>
-                      <div className="text-sm font-black text-[#003087] mt-1">
-                        {activeCurrency.symbol}{activeCurrency.amount.toFixed(2)}/yr
+                      <div className="flex items-center justify-between pr-14">
+                        <div className="text-xs font-black text-slate-900">Annual Sub</div>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Renews annually • Cancel anytime</div>
+                      <div className="text-sm font-black text-[#003087] mt-1.5">
+                        {activeCurrency.symbol}{activeCurrency.amount.toFixed(2)}<span className="text-[10px] font-bold text-slate-500">/yr</span>
                       </div>
                     </button>
                   </div>
@@ -254,9 +308,12 @@ Thank you for supporting Lumina Diary!`;
 
                 {/* Currency Selection */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    Currency Supported by PayPal
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Billing Currency
+                    </label>
+                    <span className="text-[10px] text-slate-400">Total: {activeCurrency.symbol}{activeCurrency.amount.toFixed(2)} {activeCurrency.code}</span>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {Object.values(CURRENCIES).map((cur) => (
                       <button
@@ -266,7 +323,7 @@ Thank you for supporting Lumina Diary!`;
                           setCurrency(cur.code);
                           setErrorMessage('');
                         }}
-                        className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                           currency === cur.code
                             ? 'bg-[#003087] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -279,42 +336,14 @@ Thank you for supporting Lumina Diary!`;
                   </div>
                 </div>
 
-                {/* PayPal Checkout Area with @paypal/react-paypal-js */}
-                <div className="space-y-3 pt-2">
-                  {/* PayPal Header Pill */}
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-[#003087]/10 via-[#0070BA]/10 to-amber-500/10 border border-[#0079C1]/20">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-[#003087] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                        <i className="fa-brands fa-paypal text-base"></i>
-                      </div>
-                      <div>
-                        <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                          <span>PayPal Smart Buttons</span>
-                          <span className="text-[9px] font-extrabold text-[#0079C1] bg-sky-100/80 px-1.5 py-0.2 rounded-md">
-                            @paypal/react-paypal-js
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          PayPal Balance, Credit/Debit Card, or Pay Later
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-xs font-black text-slate-900">
-                        {activeCurrency.symbol}{activeCurrency.amount.toFixed(2)}
-                      </div>
-                      <div className="text-[9px] font-semibold text-slate-400 uppercase">
-                        {activeCurrency.code}
-                      </div>
-                    </div>
-                  </div>
-
+                {/* PayPal Smart Payment Buttons Container */}
+                <div className="space-y-2.5 pt-1">
+                  
                   {/* Error Notification */}
                   {errorMessage && (
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2 shadow-xs">
                       <i className="fa-solid fa-circle-exclamation text-rose-500 mt-0.5 shrink-0"></i>
-                      <span className="flex-1">{errorMessage}</span>
+                      <span className="flex-1 font-medium">{errorMessage}</span>
                     </div>
                   )}
 
@@ -322,13 +351,13 @@ Thank you for supporting Lumina Diary!`;
                   {isProcessing && (
                     <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-center space-y-2">
                       <div className="w-6 h-6 border-2 border-sky-600/20 border-t-sky-600 rounded-full animate-spin mx-auto"></div>
-                      <p className="text-xs font-bold text-sky-900">Capturing & verifying PayPal transaction...</p>
+                      <p className="text-xs font-bold text-sky-900">Authorizing & capturing PayPal transaction...</p>
                       <p className="text-[10px] text-sky-700">Please do not close this window.</p>
                     </div>
                   )}
 
-                  {/* Official PayPal Buttons from @paypal/react-paypal-js */}
-                  <div className={isProcessing ? 'opacity-40 pointer-events-none' : 'opacity-100'}>
+                  {/* Official PayPal Buttons Container */}
+                  <div className={`relative min-h-[92px] ${isProcessing ? 'opacity-35 pointer-events-none' : 'opacity-100'}`}>
                     <PayPalScriptProvider
                       key={`${currency}-${PAYPAL_CLIENT_ID}`}
                       options={{
@@ -409,38 +438,53 @@ Thank you for supporting Lumina Diary!`;
                           }
                         }}
                         onCancel={() => {
-                          setErrorMessage('PayPal checkout window was closed.');
+                          setErrorMessage('PayPal checkout session was cancelled.');
                         }}
                         onError={(err: any) => {
                           console.warn('PayPalButtons component onError:', err);
-                          setErrorMessage('PayPal was temporarily restricted from opening a popup in this browser frame. Use the instant approval button below.');
+                          setShowSandboxFallback(true);
+                          setErrorMessage('PayPal popup was restricted by this browser frame. Use the instant approval button below.');
                         }}
                       />
                     </PayPalScriptProvider>
                   </div>
 
-                  {/* Fallback button if iframe sandbox blocks PayPal popup */}
-                  <button
-                    type="button"
-                    onClick={handleDirectSandboxApproval}
-                    className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-200/80 active:scale-98"
-                  >
-                    <i className="fa-brands fa-paypal text-[#0070BA] text-sm"></i>
-                    <span>Instant PayPal Sandbox Approval</span>
-                  </button>
+                  {/* Fallback helper for sandbox iframe environments */}
+                  <div className="pt-1">
+                    {!showSandboxFallback ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowSandboxFallback(true)}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                      >
+                        <i className="fa-brands fa-paypal text-sky-600"></i>
+                        <span>Need instant sandbox testing? Click here</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleDirectSandboxApproval}
+                        className="w-full py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-sky-200 active:scale-98 shadow-xs"
+                      >
+                        <i className="fa-brands fa-paypal text-[#0070BA] text-sm"></i>
+                        <span>Instant Sandbox Verification ({activeCurrency.symbol}{activeCurrency.amount.toFixed(2)} {activeCurrency.code})</span>
+                      </button>
+                    )}
+                  </div>
 
-                  {/* Buyer Protection Footer */}
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 px-1">
+                  {/* Trust & Guarantee Ribbon */}
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 px-1">
                     <div className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-                      <i className="fa-solid fa-shield-halved text-xs"></i>
-                      <span>PayPal Buyer Protection Eligible</span>
+                      <i className="fa-solid fa-circle-check text-xs"></i>
+                      <span>PayPal Buyer Protection</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 text-slate-400">
                       <i className="fa-solid fa-lock text-[9px]"></i>
-                      <span>256-Bit SSL Encrypted</span>
+                      <span>256-Bit TLS Bank Encryption</span>
                     </div>
                   </div>
                 </div>
+
               </div>
             </>
           )}
@@ -448,7 +492,7 @@ Thank you for supporting Lumina Diary!`;
           {step === 'success' && paypalResult && (
             <div className="p-6 sm:p-8 flex flex-col items-center text-center space-y-4">
               <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl shadow-inner border border-emerald-200">
-                <i className="fa-solid fa-crown"></i>
+                <i className="fa-solid fa-crown text-2xl"></i>
               </div>
 
               <div className="space-y-1">
@@ -464,16 +508,12 @@ Thank you for supporting Lumina Diary!`;
                 </p>
               </div>
 
-              <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-xs text-left space-y-2">
+              <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs text-left space-y-2.5">
                 <div className="flex justify-between items-center text-slate-600 text-[11px]">
                   <span className="font-medium">Gateway:</span>
-                  <span className="font-bold text-[#003087] flex items-center gap-1">
-                    <i className="fa-brands fa-paypal"></i> PayPal (@paypal/react-paypal-js)
+                  <span className="font-bold text-[#003087] flex items-center gap-1.5">
+                    <i className="fa-brands fa-paypal"></i> PayPal Official Checkout
                   </span>
-                </div>
-                <div className="flex justify-between items-center text-slate-600 text-[11px]">
-                  <span className="font-medium">Client ID:</span>
-                  <span className="font-mono text-slate-700">{PAYPAL_CLIENT_ID}</span>
                 </div>
                 <div className="flex justify-between items-center text-slate-600 text-[11px]">
                   <span className="font-medium">Order ID:</span>
@@ -483,16 +523,16 @@ Thank you for supporting Lumina Diary!`;
                   <span className="font-medium">Receipt No:</span>
                   <span className="font-mono text-slate-700">{paypalResult.receiptNumber}</span>
                 </div>
-                <div className="flex items-center gap-2.5 p-2 bg-white rounded-xl border border-slate-200/60">
+                <div className="flex items-center gap-2.5 p-2.5 bg-white rounded-xl border border-slate-200/60 shadow-2xs">
                   <img
                     src="/lumina-product-image.jpg"
                     alt="Lumina Diary Pro Product Icon"
-                    className="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-100"
+                    className="w-11 h-11 rounded-lg object-cover shrink-0 border border-slate-100"
                     referrerPolicy="no-referrer"
                   />
                   <div className="min-w-0 flex-1 text-slate-800">
                     <div className="font-bold text-xs truncate">Lumina Diary Pro (Digital Edition)</div>
-                    <div className="text-[10px] text-cyan-700 font-semibold">{billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}</div>
+                    <div className="text-[10px] text-sky-700 font-semibold">{billingType === 'auto' ? 'Annual Subscription' : '1-Year Digital Pass'}</div>
                   </div>
                 </div>
                 <div className="flex justify-between items-center text-slate-600 text-[11px]">
@@ -501,7 +541,7 @@ Thank you for supporting Lumina Diary!`;
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-slate-800 font-black">
                   <span>Total Paid:</span>
-                  <span className="text-emerald-600 font-bold">
+                  <span className="text-emerald-600 font-bold text-sm">
                     {activeCurrency.symbol}{paypalResult.amount.toFixed(2)} {paypalResult.currency}
                   </span>
                 </div>
@@ -513,7 +553,7 @@ Thank you for supporting Lumina Diary!`;
                   onClick={() => {
                     onClose();
                   }}
-                  className="w-full py-3 px-6 rounded-2xl bg-[#003087] hover:bg-[#002366] text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                  className="w-full py-3.5 px-6 rounded-2xl bg-[#003087] hover:bg-[#002366] text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
                 >
                   <i className="fa-solid fa-book-open text-xs"></i>
                   <span>Enter Diary Sanctuary with Pro</span>
@@ -522,7 +562,7 @@ Thank you for supporting Lumina Diary!`;
                 <button
                   type="button"
                   onClick={handleCopyReceipt}
-                  className="w-full py-2.5 px-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
                 >
                   {copiedReceipt ? '✓ PayPal Receipt Copied to Clipboard!' : 'Copy PayPal Receipt'}
                 </button>
