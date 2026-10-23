@@ -255,8 +255,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <i className="fa-solid fa-crown text-xs" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xs font-bold text-slate-800">Lumina Premium</span>
-                <span className="text-[10px] text-slate-500 font-medium">Active Member</span>
+                <span className="text-xs font-bold text-slate-800">Lumina Pro</span>
+                <span className="text-[10px] text-emerald-600 font-bold">● Active Member</span>
               </div>
             </div>
             <button
@@ -268,63 +268,26 @@ const Sidebar: React.FC<SidebarProps> = ({
               Manage
             </button>
           </div>
-        ) : trialInfo?.isTrialActive ? (
-          /* Active Trial Card without expiration date or days remaining */
-          <div className="bg-gradient-to-tr from-indigo-950 via-slate-900 to-cyan-950 p-4 rounded-3xl border border-indigo-700/40 shadow-lg mb-4 flex flex-col gap-2.5">
-            <div className="flex items-start gap-2.5 text-white">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border bg-indigo-900/60 border-indigo-500/50 text-indigo-300">
-                <i className="fa-solid fa-crown text-xs" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black tracking-tight text-white flex items-center gap-1">
-                    Premium Active
-                  </h4>
-                  <span className="text-[9px] font-black text-emerald-300 bg-emerald-950/70 border border-emerald-700/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Full Access
-                  </span>
-                </div>
-                <p className="text-[10px] text-indigo-100/70 mt-1 leading-normal">
-                  All premium features unlocked. Upgrade anytime to keep premium permanently for <strong>$2.50</strong>.
-                </p>
-              </div>
-            </div>
-            
-            <button
-              onClick={() => {
-                onUpgradeClick();
-                if (onCloseMobile) onCloseMobile();
-              }}
-              className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-cyan-900/40 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer mt-0.5"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-                <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-                <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-              </svg>
-              <span>Keep Premium ($2.50)</span>
-            </button>
-          </div>
         ) : (
-          /* Trial Expired / Cancelled Card */
-          <div className="bg-gradient-to-tr from-slate-950 via-slate-900 to-cyan-950 p-4 rounded-3xl border border-cyan-800/30 shadow-lg mb-4 flex flex-col gap-2.5">
+          /* Free / Upgrade Needed Card */
+          <div className="bg-gradient-to-tr from-slate-950 via-slate-900 to-[#002c6c] p-4 rounded-3xl border border-sky-800/30 shadow-lg mb-4 flex flex-col gap-2.5">
             <div className="flex items-start gap-2.5 text-white">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border bg-cyan-900/40 border-cyan-700/50 text-cyan-300">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border bg-sky-900/40 border-sky-700/50 text-sky-300">
                 <i className="fa-solid fa-crown text-xs" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black tracking-tight text-white">
-                    {trialInfo?.isCancelled ? 'Membership Cancelled' : 'Trial Ended'}
+                    {trialInfo?.isCancelled ? 'Membership Cancelled' : 'Unlock Lumina Pro'}
                   </h4>
-                  <span className="text-[9px] font-black text-rose-300 bg-rose-950/70 border border-rose-700/60 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                    {trialInfo?.isCancelled ? 'Cancelled' : 'Upgrade Needed'}
+                  <span className="text-[9px] font-black text-amber-300 bg-amber-950/70 border border-amber-700/60 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                    {trialInfo?.isCancelled ? 'Locked' : 'Pro Pass'}
                   </span>
                 </div>
-                <p className="text-[10px] text-cyan-100/70 mt-0.5 leading-normal">
+                <p className="text-[10px] text-sky-100/70 mt-0.5 leading-normal">
                   {trialInfo?.isCancelled
-                    ? 'Premium features are locked. Reactivate anytime for only $2.50.'
-                    : 'Your trial has concluded. Restore unlimited pages, sync & insights for only $2.50.'}
+                    ? 'Premium features are locked. Reactivate anytime via PayPal for only $2.50.'
+                    : 'Unlimited diary pages, AI emotion analytics, and secure cloud sync for $2.50.'}
                 </p>
               </div>
             </div>
@@ -337,7 +300,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="w-full bg-gradient-to-r from-[#003087] via-[#0070BA] to-indigo-600 hover:from-[#00256c] hover:to-indigo-500 transition-all font-black py-2.5 px-3 rounded-xl text-xs text-white shadow-md shadow-blue-900/30 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
             >
               <i className="fa-brands fa-paypal text-[#00E5FF] text-xs"></i>
-              <span>{trialInfo?.isCancelled ? 'Reactivate ($2.50 via PayPal)' : 'Upgrade ($2.50 via PayPal)'}</span>
+              <span>{trialInfo?.isCancelled ? 'Reactivate ($2.50 via PayPal)' : 'Upgrade to Pro ($2.50 via PayPal)'}</span>
             </button>
           </div>
         )}

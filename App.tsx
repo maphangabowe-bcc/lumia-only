@@ -605,14 +605,9 @@ const App: React.FC = () => {
                 <h1 className="text-lg sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
                   <span className="md:inline hidden">Your Journey</span>
                   <span className="inline md:hidden font-extrabold tracking-tight text-indigo-600">Lumina</span>
-                  {(trialInfo.isPaid || trialInfo.isTrialActive) && (
+                  {trialInfo.isPaid && (
                     <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 font-extrabold text-[8px] uppercase tracking-wider inline-flex items-center gap-0.5 select-none shrink-0">
-                      <i className="fa-solid fa-crown text-[7px]" /> PREMIUM
-                    </span>
-                  )}
-                  {trialInfo.isTrialExpired && (
-                    <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-600 font-extrabold text-[8px] uppercase tracking-wider inline-flex items-center gap-0.5 select-none shrink-0">
-                      TRIAL EXPIRED
+                      <i className="fa-solid fa-crown text-[7px]" /> PRO
                     </span>
                   )}
                 </h1>
@@ -629,26 +624,15 @@ const App: React.FC = () => {
                   />
                 </div>
                 
-                {trialInfo.isTrialActive && (
+                {!trialInfo.isPaid && (
                   <button
                     onClick={() => setShowPremiumModal(true)}
-                    className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
-                    title="All features unlocked! Upgrade anytime for $2.50 to keep forever"
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#003087] to-[#0070BA] hover:from-[#00256c] hover:to-[#005a96] text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+                    title="Upgrade to Lumina Pro via PayPal ($2.50)"
                   >
-                    <i className="fa-solid fa-crown text-[10px] text-amber-500"></i>
-                    <span className="hidden sm:inline">Keep Pro</span>
+                    <i className="fa-brands fa-paypal text-[11px] text-[#00E5FF]"></i>
+                    <span className="hidden sm:inline">Upgrade to Pro</span>
                     <span className="font-mono font-bold">$2.50</span>
-                  </button>
-                )}
-
-                {trialInfo.isTrialExpired && (
-                  <button
-                    onClick={() => setShowPremiumModal(true)}
-                    className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-sm shadow-orange-200 active:scale-95 cursor-pointer shrink-0 animate-pulse"
-                    title="Trial Ended - Upgrade to Lumina Pro via Dodo Payments ($2.50)"
-                  >
-                    <span className="text-xs shrink-0">🦤</span>
-                    <span>Upgrade <span className="hidden sm:inline font-mono font-bold">$2.50</span></span>
                   </button>
                 )}
 

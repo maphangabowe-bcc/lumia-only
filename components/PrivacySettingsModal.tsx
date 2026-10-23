@@ -327,27 +327,23 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs shrink-0 mt-0.5">
-                      <i className={`fa-solid ${trialInfo?.isPaid ? 'fa-crown text-amber-500' : (trialInfo?.isTrialActive ? 'fa-gift text-indigo-600' : 'fa-hourglass-end text-rose-500')}`}></i>
+                    <div className="w-8 h-8 rounded-lg bg-sky-100 text-[#003087] flex items-center justify-center text-xs shrink-0 mt-0.5">
+                      <i className={`fa-solid ${trialInfo?.isPaid ? 'fa-crown text-amber-500' : 'fa-lock text-slate-500'}`}></i>
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-slate-800">
                         {trialInfo?.isPaid 
-                          ? 'Lumina Premium Active' 
+                          ? 'Lumina Pro Active' 
                           : (trialInfo?.isCancelled
-                              ? 'Premium Membership Cancelled'
-                              : (trialInfo?.isTrialActive 
-                                  ? 'Free Trial Active' 
-                                  : 'Free Trial Ended'))}
+                              ? 'Lumina Pro Cancelled'
+                              : 'Standard Free Edition')}
                       </h4>
                       <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
                         {trialInfo?.isPaid 
-                          ? (currentBillingType === 'auto' ? 'Auto-Billing Subscription ($2.50/yr)' : 'Permanent License Pass ($2.50)')
+                          ? (currentBillingType === 'auto' ? 'Annual Subscription ($2.50/yr) • Verified PayPal' : '1-Year Pass ($2.50) • Verified PayPal')
                           : (trialInfo?.isCancelled
-                              ? 'Subscription cancelled. Premium features are locked until you upgrade.'
-                              : (trialInfo?.isTrialActive 
-                                  ? 'Full access to all premium features enabled' 
-                                  : 'Trial concluded. Upgrade to restore premium features.'))}
+                              ? 'Membership cancelled. Premium features are locked until reactivated.'
+                              : 'Free tier active (30 entries limit). Upgrade via PayPal to unlock all Pro features.')}
                       </p>
                     </div>
                   </div>
@@ -359,13 +355,9 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                     <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-black rounded-full uppercase shrink-0">
                       Cancelled
                     </span>
-                  ) : trialInfo?.isTrialActive ? (
-                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-full uppercase shrink-0">
-                      Trial Active
-                    </span>
                   ) : (
-                    <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-black rounded-full uppercase shrink-0">
-                      Expired
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-black rounded-full uppercase shrink-0">
+                      Free Tier
                     </span>
                   )}
                 </div>
@@ -374,9 +366,7 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                 {!trialInfo?.isPaid && (
                   <div className="pt-2 border-t border-slate-200/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                     <div className="text-[10px] text-slate-500 leading-tight">
-                      {trialInfo?.isTrialActive 
-                        ? 'Want to keep premium permanently? Lock it in anytime.' 
-                        : 'Upgrade now to restore unlimited pages, AI insights, and backups.'}
+                      Upgrade to Lumina Pro to unlock unlimited journaling, sentiment analytics, and remote sync.
                     </div>
                     <button
                       type="button"
@@ -384,49 +374,13 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                         onClose();
                         if (onOpenPremium) onOpenPremium();
                       }}
-                      className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                      className="px-3.5 py-1.5 bg-gradient-to-r from-[#003087] via-[#0070BA] to-indigo-600 hover:from-[#00256c] hover:to-indigo-500 text-white text-[11px] font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                     >
-                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none">
-                        <rect x="3" y="4" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-                        <rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-                        <rect x="3" y="17" width="18" height="3" rx="1.5" fill="#FFFFFF" />
-                      </svg>
-                      <span>{trialInfo?.isTrialActive ? 'Keep Premium $2.50' : 'Upgrade Now $2.50'}</span>
+                      <i className="fa-brands fa-paypal text-[#00E5FF] text-xs"></i>
+                      <span>Upgrade to Pro ($2.50)</span>
                     </button>
                   </div>
                 )}
-
-                {/* Testing & Verification Controls for Trial Simulation */}
-                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
-                  <span className="text-slate-400 font-medium">Trial Testing:</span>
-                  <div className="flex items-center gap-2">
-                    {trialInfo?.isTrialActive ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          trialService.simulateExpired();
-                          triggerToast('Simulated trial expiration. Premium features locked.', 'info');
-                        }}
-                        className="text-rose-600 hover:text-rose-700 font-bold underline cursor-pointer"
-                        title="Simulate what happens when the free trial period expires"
-                      >
-                        Simulate Expired Trial
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          trialService.resetTrial();
-                          triggerToast('Free trial restored. All premium features unlocked!', 'success');
-                        }}
-                        className="text-indigo-600 hover:text-indigo-700 font-bold underline cursor-pointer"
-                        title="Reset free trial to active"
-                      >
-                        Reset Free Trial
-                      </button>
-                    )}
-                  </div>
-                </div>
 
 
                 {trialInfo?.isPaid && (
