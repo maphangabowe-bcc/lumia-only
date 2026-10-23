@@ -514,7 +514,7 @@ Guidelines:
 
   const paypalOrders = new Map<string, PayPalOrderRecord>();
 
-  // PayPal Server-Side Credentials & OAuth Token Helper
+  // PayPal Server-Side Credentials & OAuth Token Helper (Live Production)
   async function getPayPalAccessToken(): Promise<{ token: string; baseUrl: string } | null> {
     const clientId = process.env.PAYPAL_CLIENT_ID;
     const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
@@ -525,8 +525,8 @@ Guidelines:
 
     const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     
-    // Check sandbox first, then live
-    for (const baseUrl of ['https://api-m.sandbox.paypal.com', 'https://api-m.paypal.com']) {
+    // Check live production endpoint first, with sandbox fallback if live credentials fail
+    for (const baseUrl of ['https://api-m.paypal.com', 'https://api-m.sandbox.paypal.com']) {
       try {
         const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
           method: 'POST',
@@ -554,9 +554,9 @@ Guidelines:
     res.json({
       clientId,
       currency: "USD",
-      isSandbox: !process.env.PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID === "test" || process.env.PAYPAL_CLIENT_ID === "sb",
+      isSandbox: false,
       hasSecret,
-      gateway: "PayPal Payments Standard & Smart Buttons",
+      gateway: "PayPal Live Production Smart Buttons",
       version: "v2"
     });
   });
