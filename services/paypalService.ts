@@ -44,7 +44,7 @@ export interface PayPalCaptureResult {
 class PayPalService {
   private scriptLoadingPromise: Promise<boolean> | null = null;
   private currentCurrency: string = 'USD';
-  private cachedClientId: string = 'test';
+  private cachedClientId: string = (import.meta as any).env?.VITE_PAYPAL_CLIENT_ID || 'BAA8yU6hAYVDKoNo_F0j92gfpKlvcSXSLHK5GUB72kWj2FQNUVFNqnwn4NPcwn17acYemCFJ4Qvo1aiFng';
 
   /**
    * Fetches gateway configuration from backend
@@ -54,17 +54,17 @@ class PayPalService {
       const res = await fetch('/api/paypal/config');
       if (res.ok) {
         const data = await res.json();
-        this.cachedClientId = data.clientId || 'test';
+        this.cachedClientId = data.clientId || this.cachedClientId;
         return data;
       }
     } catch (e) {
-      console.warn('Could not fetch PayPal config, using default test client ID:', e);
+      console.warn('Could not fetch PayPal config from backend, using live environment client ID:', e);
     }
     return {
-      clientId: 'test',
+      clientId: this.cachedClientId,
       currency: 'USD',
-      isSandbox: true,
-      gateway: 'PayPal Payments Standard'
+      isSandbox: false,
+      gateway: 'PayPal Live Production Smart Buttons'
     };
   }
 

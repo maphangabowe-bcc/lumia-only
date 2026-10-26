@@ -18,9 +18,11 @@ const MoodChart = lazy(() => import('./components/MoodChart'));
 const DailyAffirmation = lazy(() => import('./components/DailyAffirmation'));
 const ShareView = lazy(() => import('./components/ShareView'));
 const SharedEntryView = lazy(() => import('./components/SharedEntryView'));
-const BackupModal = lazy(() => import('./components/BackupModal'));
-const PremiumModal = lazy(() => import('./components/PremiumModal'));
-const InviteModal = lazy(() => import('./components/InviteModal').then(m => ({ default: m.InviteModal })));
+import BackupModal from './components/BackupModal';
+import PremiumModal from './components/PremiumModal';
+import { InviteModal } from './components/InviteModal';
+
+
 
 // Dynamic skeleton loaders that match components perfectly to prevent layout shifts on slow connections
 const TimelineSkeleton = () => (

@@ -2,11 +2,25 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { nanoid } from "nanoid";
 
-// Load environment variables from .env if present
+import fs from "fs";
+
+// Load environment variables from .env with override so user-configured live keys take precedence
 try {
-  (process as any).loadEnvFile?.();
+  if (fs.existsSync(".env")) {
+    const envConfig = fs.readFileSync(".env", "utf8");
+    for (const line of envConfig.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        process.env[key] = val;
+      }
+    }
+  }
 } catch (e) {
-  // Ignore if .env is missing or environment variables are provided by the container
+  // Ignore fallback
 }
 
 async function startServer() {
@@ -514,47 +528,47 @@ Guidelines:
 
   const paypalOrders = new Map<string, PayPalOrderRecord>();
 
-  // PayPal Server-Side Credentials & OAuth Token Helper (Live Production)
+  // PayPal Server-Side Credentials & OAuth Token Helper (Strictly Live Production)
   async function getPayPalAccessToken(): Promise<{ token: string; baseUrl: string } | null> {
-    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const clientId = process.env.PAYPAL_CLIENT_ID || process.env.VITE_PAYPAL_CLIENT_ID;
     const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    const mode = process.env.PAYPAL_MODE || 'live';
 
     if (!clientId || !clientSecret || clientId === 'test') {
       return null;
     }
 
     const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    
-    // Check live production endpoint first, with sandbox fallback if live credentials fail
-    for (const baseUrl of ['https://api-m.paypal.com', 'https://api-m.sandbox.paypal.com']) {
-      try {
-        const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${auth}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: 'grant_type=client_credentials'
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return { token: data.access_token, baseUrl };
-        }
-      } catch (e) {
-        // try next
+    const baseUrl = mode === 'sandbox' ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
+
+    try {
+      const res = await fetch(`${baseUrl}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return { token: data.access_token, baseUrl };
       }
+    } catch (e) {
+      console.error("PayPal Live OAuth Token Error:", e);
     }
     return null;
   }
 
   // 1. Get PayPal Configuration
   app.get("/api/paypal/config", (_req, res) => {
-    const clientId = process.env.PAYPAL_CLIENT_ID || "test";
+    const clientId = process.env.PAYPAL_CLIENT_ID || process.env.VITE_PAYPAL_CLIENT_ID || "BAA8yU6hAYVDKoNo_F0j92gfpKlvcSXSLHK5GUB72kWj2FQNUVFNqnwn4NPcwn17acYemCFJ4Qvo1aiFng";
     const hasSecret = Boolean(process.env.PAYPAL_CLIENT_SECRET);
     res.json({
       clientId,
       currency: "USD",
       isSandbox: false,
+      mode: "live",
       hasSecret,
       gateway: "PayPal Live Production Smart Buttons",
       version: "v2"

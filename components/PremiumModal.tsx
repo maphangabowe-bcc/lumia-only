@@ -31,8 +31,8 @@ const CURRENCIES: Record<CurrencyCode, CurrencyOption> = {
   AUD: { code: 'AUD', symbol: 'AU$', name: 'Australian Dollar', amount: 3.80, flag: '🇦🇺' },
 };
 
-// PayPal Client ID from .env file
-const PAYPAL_CLIENT_ID = (import.meta as any).env?.VITE_PAYPAL_CLIENT_ID || (import.meta as any).env?.PAYPAL_CLIENT_ID || 'test';
+// PayPal Live Client ID from environment or backend
+const DEFAULT_PAYPAL_CLIENT_ID = (import.meta as any).env?.VITE_PAYPAL_CLIENT_ID || 'BAA8yU6hAYVDKoNo_F0j92gfpKlvcSXSLHK5GUB72kWj2FQNUVFNqnwn4NPcwn17acYemCFJ4Qvo1aiFng';
 
 export const PremiumModal: React.FC<PremiumModalProps> = ({ 
   isOpen, 
@@ -50,7 +50,16 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [paypalResult, setPaypalResult] = useState<PayPalCaptureResult | null>(null);
-  const [showSandboxFallback, setShowSandboxFallback] = useState(false);
+  const [liveClientId, setLiveClientId] = useState<string>(DEFAULT_PAYPAL_CLIENT_ID);
+
+  // Sync client ID from backend configuration to guarantee live production credentials
+  React.useEffect(() => {
+    paypalService.getConfig().then((cfg) => {
+      if (cfg?.clientId && cfg.clientId !== 'test') {
+        setLiveClientId(cfg.clientId);
+      }
+    });
+  }, []);
 
   if (!isOpen) return null;
 
@@ -62,46 +71,6 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     trialService.markPaid(billingType);
     onUnlock(billingType);
     setStep('success');
-  };
-
-  // Fallback direct approval for sandbox iframe environments where popups are blocked
-  const handleDirectSandboxApproval = async () => {
-    setIsProcessing(true);
-    setErrorMessage('');
-    try {
-      const order = await paypalService.createOrder({
-        amount: activeCurrency.amount,
-        currency: activeCurrency.code,
-        billingType,
-        customerEmail: receiptEmail
-      });
-
-      const captureResult = await paypalService.captureOrder({
-        orderId: order.orderId,
-        details: {
-          id: `CAP-${Date.now()}`,
-          status: 'COMPLETED',
-          payer: {
-            name: { given_name: receiptEmail ? receiptEmail.split('@')[0] : 'PayPal', surname: 'User' },
-            email_address: receiptEmail || 'customer@paypal.com'
-          }
-        },
-        billingType,
-        customerEmail: receiptEmail,
-        amount: activeCurrency.amount,
-        currency: activeCurrency.code
-      });
-
-      if (captureResult.success && captureResult.status === 'COMPLETED') {
-        handlePayPalSuccess(captureResult);
-      } else {
-        throw new Error('PayPal payment transaction was not approved.');
-      }
-    } catch (e: any) {
-      setErrorMessage(e.message || 'Direct PayPal authorization failed.');
-    } finally {
-      setIsProcessing(false);
-    }
   };
 
   const handleCopyReceipt = () => {
@@ -359,12 +328,13 @@ Thank you for supporting Lumina Diary!`;
                   {/* Official PayPal Buttons Container */}
                   <div className={`relative min-h-[92px] ${isProcessing ? 'opacity-35 pointer-events-none' : 'opacity-100'}`}>
                     <PayPalScriptProvider
-                      key={`${currency}-${PAYPAL_CLIENT_ID}`}
+                      key={`${currency}-${liveClientId}`}
                       options={{
-                        clientId: PAYPAL_CLIENT_ID,
+                        clientId: liveClientId,
                         currency: activeCurrency.code,
                         components: 'buttons',
                         enableFunding: 'venmo,paylater',
+                        intent: 'capture',
                       }}
                     >
                       <PayPalButtons
@@ -442,34 +412,10 @@ Thank you for supporting Lumina Diary!`;
                         }}
                         onError={(err: any) => {
                           console.warn('PayPalButtons component onError:', err);
-                          setShowSandboxFallback(true);
-                          setErrorMessage('PayPal popup was restricted by this browser frame. Use the instant approval button below.');
+                          setErrorMessage('PayPal was temporarily unable to complete the payment window. Please check your connection and try again.');
                         }}
                       />
                     </PayPalScriptProvider>
-                  </div>
-
-                  {/* Fallback helper for sandbox iframe environments */}
-                  <div className="pt-1">
-                    {!showSandboxFallback ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowSandboxFallback(true)}
-                        className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                      >
-                        <i className="fa-brands fa-paypal text-sky-600"></i>
-                        <span>Need instant sandbox testing? Click here</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleDirectSandboxApproval}
-                        className="w-full py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-sky-200 active:scale-98 shadow-xs"
-                      >
-                        <i className="fa-brands fa-paypal text-[#0070BA] text-sm"></i>
-                        <span>Instant Sandbox Verification ({activeCurrency.symbol}{activeCurrency.amount.toFixed(2)} {activeCurrency.code})</span>
-                      </button>
-                    )}
                   </div>
 
                   {/* Trust & Guarantee Ribbon */}
