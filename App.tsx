@@ -108,7 +108,12 @@ const App: React.FC = () => {
       const isSavedUnlocked = localStorage.getItem('lumina_session_unlocked') === 'true';
       const lastActive = parseInt(localStorage.getItem('lumina_last_activity_at') || '0', 10);
       const isRecent = Date.now() - lastActive < 15 * 60 * 1000;
-      return isSavedUnlocked && isRecent;
+      const isCheckoutActive = 
+        typeof window !== 'undefined' && 
+        (window.location.pathname === '/checkout' || 
+         window.location.search.includes('checkout') || 
+         sessionStorage.getItem('lumina_checkout_active') === 'true');
+      return isSavedUnlocked && (isRecent || isCheckoutActive);
     } catch {
       return false;
     }
@@ -165,6 +170,74 @@ const App: React.FC = () => {
     setToast({ message, type });
   };
 
+  // Checkout page status detection
+  const isAtCheckout = useMemo(() => {
+    return Boolean(
+      showPremiumModal ||
+      currentPath === '/checkout' ||
+      (typeof window !== 'undefined' && (
+        window.location.pathname === '/checkout' ||
+        window.location.search.includes('checkout') ||
+        sessionStorage.getItem('lumina_checkout_active') === 'true'
+      ))
+    );
+  }, [showPremiumModal, currentPath]);
+
+  // Keep /checkout path and modal in sync
+  useEffect(() => {
+    if (currentPath === '/checkout' || window.location.pathname === '/checkout' || window.location.search.includes('checkout')) {
+      if (!showPremiumModal) {
+        setShowPremiumModal(true);
+      }
+    }
+  }, [currentPath, showPremiumModal]);
+
+  // Dedicated checkout keepalive: Continuously renew session so checkout progress is never lost
+  useEffect(() => {
+    if (isAtCheckout) {
+      try {
+        sessionStorage.setItem('lumina_checkout_active', 'true');
+        localStorage.setItem('lumina_session_unlocked', 'true');
+        localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+      } catch {}
+
+      const keepAliveInterval = setInterval(() => {
+        try {
+          localStorage.setItem('lumina_session_unlocked', 'true');
+          localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+        } catch {}
+      }, 10000);
+
+      return () => {
+        clearInterval(keepAliveInterval);
+      };
+    }
+  }, [isAtCheckout]);
+
+  const handleClosePremiumModal = () => {
+    try {
+      sessionStorage.removeItem('lumina_checkout_active');
+    } catch {}
+    setShowPremiumModal(false);
+    if (currentPath === '/checkout') {
+      navigate('/');
+    }
+  };
+
+  const handleLockOrLogout = () => {
+    if (isAtCheckout) {
+      triggerToast('Security lock is paused while on the checkout page to preserve your transaction.', 'info');
+      return;
+    }
+    auth.signOut();
+    try {
+      localStorage.removeItem('lumina_session_unlocked');
+      localStorage.removeItem('lumina_last_activity_at');
+    } catch {}
+    setIsUnlocked(false);
+    triggerToast('Diary locked safely.', 'info');
+  };
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -207,6 +280,7 @@ const App: React.FC = () => {
   // 15-Minute Strict Inactivity Lock Manager
   // Users stay active and unlocked as long as they are busy in the app.
   // The app will only lock after 15 consecutive minutes of zero activity.
+  // CRITICAL: Users are NEVER logged out or locked while they are at the checkout page.
   useEffect(() => {
     if (!isUnlocked) return;
 
@@ -221,12 +295,34 @@ const App: React.FC = () => {
     const checkAndScheduleTimeout = () => {
       if (inactivityTimerRef.current) {
         clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+
+      // CRITICAL: NEVER logout or lock users while they are at the checkout page
+      if (isAtCheckout) {
+        lastActivityRef.current = Date.now();
+        try {
+          localStorage.setItem('lumina_session_unlocked', 'true');
+          localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+        } catch {}
+        return;
       }
 
       const elapsed = Date.now() - lastActivityRef.current;
       const remaining = INACTIVITY_TIMEOUT_MS - elapsed;
 
       if (remaining <= 0) {
+        const checkoutActiveNow = 
+          showPremiumModal || 
+          window.location.pathname === '/checkout' || 
+          window.location.search.includes('checkout') || 
+          sessionStorage.getItem('lumina_checkout_active') === 'true';
+
+        if (checkoutActiveNow) {
+          lastActivityRef.current = Date.now();
+          return;
+        }
+
         setIsUnlocked(false);
         try {
           localStorage.removeItem('lumina_session_unlocked');
@@ -234,6 +330,17 @@ const App: React.FC = () => {
         triggerToast('Session locked after 15 minutes of inactivity for your privacy.', 'info');
       } else {
         inactivityTimerRef.current = setTimeout(() => {
+          const checkoutActiveNow = 
+            showPremiumModal || 
+            window.location.pathname === '/checkout' || 
+            window.location.search.includes('checkout') || 
+            sessionStorage.getItem('lumina_checkout_active') === 'true';
+
+          if (checkoutActiveNow) {
+            lastActivityRef.current = Date.now();
+            return;
+          }
+
           setIsUnlocked(false);
           try {
             localStorage.removeItem('lumina_session_unlocked');
@@ -260,6 +367,24 @@ const App: React.FC = () => {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        const checkoutActiveNow = 
+          isAtCheckout ||
+          showPremiumModal || 
+          window.location.pathname === '/checkout' || 
+          window.location.search.includes('checkout') || 
+          sessionStorage.getItem('lumina_checkout_active') === 'true';
+
+        // Never logout users when returning from PayPal popup/tab/window
+        if (checkoutActiveNow) {
+          lastActivityRef.current = Date.now();
+          try {
+            localStorage.setItem('lumina_session_unlocked', 'true');
+            localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+          } catch {}
+          checkAndScheduleTimeout();
+          return;
+        }
+
         const storedLast = localStorage.getItem('lumina_last_activity_at');
         const lastTime = storedLast ? parseInt(storedLast, 10) : lastActivityRef.current;
         const elapsed = Date.now() - (isNaN(lastTime) ? lastActivityRef.current : lastTime);
@@ -315,7 +440,7 @@ const App: React.FC = () => {
       });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isUnlocked]);
+  }, [isUnlocked, isAtCheckout, showPremiumModal]);
 
   // Firebase Auth and Firestore Entries Syncer
   useEffect(() => {
@@ -695,13 +820,7 @@ const App: React.FC = () => {
           setShowPrivacyModal(true);
         }}
         onOpenInvite={() => setShowInviteModal(true)}
-        onLock={() => {
-          auth.signOut();
-          try {
-            localStorage.removeItem('lumina_session_unlocked');
-          } catch {}
-          setIsUnlocked(false);
-        }}
+        onLock={handleLockOrLogout}
         isMobileOpen={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
@@ -807,10 +926,7 @@ const App: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => {
-                    auth.signOut();
-                    setIsUnlocked(false);
-                  }}
+                  onClick={handleLockOrLogout}
                   className="w-8 h-8 rounded-full border border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-rose-600 transition-all flex items-center justify-center bg-white shadow-sm cursor-pointer"
                   title="Lock Diary Immediately"
                 >
@@ -988,10 +1104,7 @@ const App: React.FC = () => {
 
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <button
-                  onClick={() => {
-                    auth.signOut();
-                    setIsUnlocked(false);
-                  }}
+                  onClick={handleLockOrLogout}
                   className="w-8 h-8 rounded-full border border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-rose-600 transition-all flex items-center justify-center bg-white shadow-sm cursor-pointer"
                   title="Lock Diary Immediately"
                 >
@@ -1044,10 +1157,7 @@ const App: React.FC = () => {
 
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <button
-                  onClick={() => {
-                    auth.signOut();
-                    setIsUnlocked(false);
-                  }}
+                  onClick={handleLockOrLogout}
                   className="w-8 h-8 rounded-full border border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-rose-600 transition-all flex items-center justify-center bg-white shadow-sm cursor-pointer"
                   title="Lock Diary Immediately"
                 >
@@ -1106,10 +1216,7 @@ const App: React.FC = () => {
 
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <button
-                  onClick={() => {
-                    auth.signOut();
-                    setIsUnlocked(false);
-                  }}
+                  onClick={handleLockOrLogout}
                   className="w-8 h-8 rounded-full border border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-rose-600 transition-all flex items-center justify-center bg-white shadow-sm cursor-pointer"
                   title="Lock Diary Immediately"
                 >
@@ -1241,10 +1348,8 @@ const App: React.FC = () => {
           defaultTab={privacyModalTab}
           onClose={() => setShowPrivacyModal(false)}
           onLock={() => {
-            auth.signOut();
-            setIsUnlocked(false);
+            handleLockOrLogout();
             setShowPrivacyModal(false);
-            triggerToast('Diary locked successfully!', 'success');
           }}
           triggerToast={triggerToast}
           onNavigate={navigate}
@@ -1258,7 +1363,7 @@ const App: React.FC = () => {
         <Suspense fallback={<ModalLoader message="Initializing secure premium gateway..." />}>
           <PremiumModal 
             isOpen={showPremiumModal}
-            onClose={() => setShowPremiumModal(false)}
+            onClose={handleClosePremiumModal}
             onUnlock={handleUnlockPremium}
             entryCount={entries.length}
             userEmail={currentUser?.email || ''}

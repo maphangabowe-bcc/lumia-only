@@ -61,6 +61,38 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
     });
   }, []);
 
+  // Guarantee user is NEVER logged out while at checkout
+  React.useEffect(() => {
+    if (isOpen) {
+      try {
+        sessionStorage.setItem('lumina_checkout_active', 'true');
+        localStorage.setItem('lumina_session_unlocked', 'true');
+        localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+      } catch {}
+
+      const keepAliveInterval = setInterval(() => {
+        try {
+          localStorage.setItem('lumina_session_unlocked', 'true');
+          localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+        } catch {}
+      }, 10000);
+
+      return () => {
+        clearInterval(keepAliveInterval);
+        try {
+          sessionStorage.removeItem('lumina_checkout_active');
+        } catch {}
+      };
+    }
+  }, [isOpen]);
+
+  const handleClose = () => {
+    try {
+      sessionStorage.removeItem('lumina_checkout_active');
+    } catch {}
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   const activeCurrency = CURRENCIES[currency];
@@ -121,7 +153,7 @@ Thank you for supporting Lumina Diary!`;
                 <div className="absolute -bottom-8 -left-8 w-40 h-40 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
                 
                 <button 
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="absolute top-4 sm:top-5 right-4 sm:right-5 text-white/80 hover:text-white hover:bg-white/15 w-8 h-8 rounded-full flex items-center justify-center transition-all outline-none cursor-pointer"
                   title="Close"
                   aria-label="Close"
@@ -154,6 +186,25 @@ Thank you for supporting Lumina Diary!`;
               {/* Scrollable Checkout Content */}
               <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5">
                 
+                {/* Session Security Banner: Never logout while at checkout */}
+                <div className="px-3.5 py-2.5 rounded-2xl bg-indigo-50/80 border border-indigo-100 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 text-xs shadow-xs">
+                      <i className="fa-solid fa-user-lock"></i>
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                        <span>Protected Checkout Session</span>
+                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded">Active</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        Inactivity auto-logout is paused on this page so your checkout is never interrupted.
+                      </div>
+                    </div>
+                  </div>
+                  <i className="fa-solid fa-shield-check text-emerald-500 text-base shrink-0"></i>
+                </div>
+
                 {/* Active Membership Banner (if already paid) */}
                 {trialInfo && trialInfo.isPaid && (
                   <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3 flex items-start justify-between gap-3 shadow-xs">
@@ -170,7 +221,7 @@ Thank you for supporting Lumina Diary!`;
                       type="button"
                       onClick={() => {
                         trialService.cancelPremium();
-                        onClose();
+                        handleClose();
                       }}
                       className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-white border border-rose-200 px-2.5 py-1 rounded-xl transition-all hover:bg-rose-50 cursor-pointer shrink-0"
                     >
@@ -609,9 +660,7 @@ Thank you for supporting Lumina Diary!`;
               <div className="w-full space-y-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                  }}
+                  onClick={handleClose}
                   className="w-full py-3.5 px-6 rounded-2xl bg-[#003087] hover:bg-[#002366] text-white font-black text-xs sm:text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
                 >
                   <i className="fa-solid fa-book-open text-xs"></i>
