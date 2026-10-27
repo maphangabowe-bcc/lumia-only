@@ -76,7 +76,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   const handleCopyReceipt = () => {
     if (!paypalResult) return;
     const cur = CURRENCIES[currency];
-    const receiptText = `LUMINA DIARY PRO - OFFICIAL PAYPAL RECEIPT
+    const receiptText = `LUMINA DIARY PRO - OFFICIAL PAYPAL DIGITAL PRODUCT RECEIPT
 ------------------------------------------------
 Gateway: PayPal Official Checkout
 Transaction Reference: ${paypalResult.orderId}
@@ -84,8 +84,13 @@ Capture ID: ${paypalResult.captureId}
 Receipt Number: ${paypalResult.receiptNumber}
 Status: COMPLETED & VERIFIED
 Product: Lumina Diary Pro (Digital Edition)
+Product Type: Digital Goods (No Physical Shipping Required)
+Delivery Method: Instant Digital Web Unlock
+Shipping Address: Not Required / Disabled
 Plan: ${billingType === 'auto' ? 'Annual Subscription ($2.50/yr)' : '1-Year Digital Pass ($2.50)'}
-Amount: ${cur.symbol}${paypalResult.amount.toFixed(2)} ${paypalResult.currency}
+Subtotal: ${cur.symbol}${paypalResult.amount.toFixed(2)} ${paypalResult.currency}
+Shipping & Handling: $0.00 (Instant Digital Delivery)
+Total Paid: ${cur.symbol}${paypalResult.amount.toFixed(2)} ${paypalResult.currency}
 Payer: ${paypalResult.payerName} (${paypalResult.payerEmail})
 Date: ${new Date(paypalResult.timestamp).toLocaleString()}
 Security: 256-Bit SSL • PayPal Buyer Protection
@@ -127,20 +132,20 @@ Thank you for supporting Lumina Diary!`;
                 <div className="flex items-center gap-2 mb-1.5">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-black uppercase tracking-wider border border-white/20">
                     <i className="fa-brands fa-paypal text-[#00E5FF] text-[11px]"></i>
-                    <span>PayPal Secure Checkout</span>
+                    <span>Digital Product Checkout</span>
                   </div>
-                  <span className="text-[10px] text-white/75 font-semibold hidden sm:inline-flex items-center gap-1">
-                    <i className="fa-solid fa-shield-halved text-emerald-400 text-[10px]"></i> Buyer Protection
+                  <span className="text-[10px] text-white/90 font-semibold inline-flex items-center gap-1 bg-emerald-500/25 px-2.5 py-0.5 rounded-full border border-emerald-400/30">
+                    <i className="fa-solid fa-truck-slash text-emerald-300 text-[10px]"></i> No Shipping Required
                   </span>
                 </div>
 
                 <div className="flex items-baseline justify-between pr-8">
                   <div>
                     <h2 className="text-lg sm:text-xl font-black tracking-tight text-white leading-tight">
-                      Upgrade to Lumina Pro
+                      Digital Product Checkout
                     </h2>
                     <p className="text-white/85 text-xs mt-0.5 max-w-md font-medium">
-                      Infinite journaling sanctuary, deep emotion analytics, and instant cloud sync.
+                      Lumina Diary Pro • Instant digital access directly in your browser.
                     </p>
                   </div>
                 </div>
@@ -173,6 +178,29 @@ Thank you for supporting Lumina Diary!`;
                     </button>
                   </div>
                 )}
+
+                {/* Digital Delivery Notice Badge */}
+                <div className="p-3 rounded-2xl bg-sky-50/90 border border-sky-100 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[#0070BA] text-white flex items-center justify-center shrink-0 text-sm shadow-xs">
+                      <i className="fa-solid fa-cloud-arrow-down"></i>
+                    </div>
+                    <div>
+                      <div className="font-black text-slate-800 text-[11px] flex items-center gap-1.5">
+                        <span>Digital Goods Delivery</span>
+                        <span className="text-[9px] font-extrabold text-[#0070BA] bg-sky-100 px-1.5 py-0.5 rounded">Instant Access</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        100% Digital license • Shipping address is disabled & not required
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      Shipping: $0.00
+                    </span>
+                  </div>
+                </div>
 
                 {/* Compact Product Banner */}
                 <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-200/80 bg-slate-900 h-28 sm:h-36">
@@ -350,15 +378,41 @@ Thank you for supporting Lumina Diary!`;
                           setErrorMessage('');
                           try {
                             if (actions.order) {
+                              const planLabel = billingType === 'auto' ? 'Annual Subscription ($2.50/yr)' : '1-Year Digital Pass ($2.50)';
                               return actions.order.create({
                                 intent: 'CAPTURE',
+                                application_context: {
+                                  brand_name: 'Lumina Diary Pro',
+                                  shipping_preference: 'NO_SHIPPING',
+                                  user_action: 'PAY_NOW',
+                                },
                                 purchase_units: [
                                   {
-                                    description: `Lumina Diary Pro (${billingType === 'auto' ? 'Annual Subscription' : '1-Year Pass'})`,
+                                    description: `Lumina Diary Pro - Digital Goods (${planLabel})`,
+                                    custom_id: 'LUMINA_DIGITAL_PRO',
+                                    soft_descriptor: 'LUMINA PRO',
                                     amount: {
                                       currency_code: activeCurrency.code,
                                       value: activeCurrency.amount.toFixed(2),
+                                      breakdown: {
+                                        item_total: {
+                                          currency_code: activeCurrency.code,
+                                          value: activeCurrency.amount.toFixed(2),
+                                        },
+                                      },
                                     },
+                                    items: [
+                                      {
+                                        name: `Lumina Diary Pro Digital Edition (${planLabel})`,
+                                        description: 'Digital License - Unlimited entries, mood analytics & sync. No shipping needed.',
+                                        quantity: '1',
+                                        category: 'DIGITAL_GOODS',
+                                        unit_amount: {
+                                          currency_code: activeCurrency.code,
+                                          value: activeCurrency.amount.toFixed(2),
+                                        },
+                                      },
+                                    ],
                                   },
                                 ],
                               });
@@ -484,6 +538,12 @@ Thank you for supporting Lumina Diary!`;
                 <div className="flex justify-between items-center text-slate-600 text-[11px]">
                   <span className="font-medium">Payer:</span>
                   <span className="font-semibold text-slate-700">{paypalResult.payerName} ({paypalResult.payerEmail})</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 text-[11px]">
+                  <span className="font-medium">Delivery:</span>
+                  <span className="font-semibold text-emerald-600 flex items-center gap-1">
+                    <i className="fa-solid fa-bolt text-[10px]"></i> Instant Digital Unlock (No Shipping Needed)
+                  </span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-slate-800 font-black">
                   <span>Total Paid:</span>

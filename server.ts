@@ -580,6 +580,9 @@ Guidelines:
     try {
       const { amount = 2.50, currency = "USD", billingType = "manual", customerEmail } = req.body;
       const paypalAuth = await getPayPalAccessToken();
+      const numAmount = Number(amount).toFixed(2);
+      const strCurrency = String(currency).toUpperCase();
+      const planTitle = billingType === 'auto' ? 'Annual Subscription ($2.50/yr)' : '1-Year Digital Pass ($2.50)';
 
       if (paypalAuth) {
         try {
@@ -591,12 +594,35 @@ Guidelines:
             },
             body: JSON.stringify({
               intent: 'CAPTURE',
+              application_context: {
+                brand_name: 'Lumina Diary Pro',
+                shipping_preference: 'NO_SHIPPING',
+                user_action: 'PAY_NOW'
+              },
               purchase_units: [{
-                description: `Lumina Diary Pro (${billingType === 'auto' ? 'Annual Subscription' : '1-Year Pass'})`,
+                description: `Lumina Diary Pro - Digital Product (${planTitle})`,
+                custom_id: 'LUMINA_DIGITAL_PRO',
+                soft_descriptor: 'LUMINA PRO',
                 amount: {
-                  currency_code: String(currency).toUpperCase(),
-                  value: Number(amount).toFixed(2)
-                }
+                  currency_code: strCurrency,
+                  value: numAmount,
+                  breakdown: {
+                    item_total: {
+                      currency_code: strCurrency,
+                      value: numAmount
+                    }
+                  }
+                },
+                items: [{
+                  name: `Lumina Diary Pro Digital Edition (${planTitle})`,
+                  description: 'Instant digital product access - Unlimited entries, mood analytics & sync. No shipping needed.',
+                  category: 'DIGITAL_GOODS',
+                  quantity: '1',
+                  unit_amount: {
+                    currency_code: strCurrency,
+                    value: numAmount
+                  }
+                }]
               }]
             })
           });
@@ -608,9 +634,11 @@ Guidelines:
               orderId: data.id,
               status: data.status,
               amount: Number(amount),
-              currency: String(currency).toUpperCase(),
+              currency: strCurrency,
               billingType,
-              customerEmail: customerEmail || ""
+              customerEmail: customerEmail || "",
+              isDigitalProduct: true,
+              shippingPreference: "NO_SHIPPING"
             });
           }
         } catch (apiErr) {
