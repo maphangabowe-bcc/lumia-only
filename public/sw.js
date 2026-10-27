@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumina-diary-cache-v2';
+const CACHE_NAME = 'lumina-diary-cache-v3';
 
 // Static resources to cache immediately on SW installation
 const PRECACHE_ASSETS = [
@@ -15,6 +15,10 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_ASSETS))
       .then(() => self.skipWaiting())
+      .catch((err) => {
+        console.warn('Pre-caching assets encountered an issue:', err);
+        return self.skipWaiting();
+      })
   );
 });
 
@@ -33,10 +37,23 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only process GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   const url = new URL(event.request.url);
 
-  // Bypass API requests to always hit the live backend/server routes (e.g., share endpoint)
-  if (url.pathname.startsWith('/api/')) {
+  // Bypass API requests and Vite dev server assets
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.endsWith('.tsx') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.includes('hot-update') ||
+    url.searchParams.has('t')
+  ) {
     return;
   }
 
@@ -73,6 +90,7 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => {
           /* Silent fallback when offline/slow */
+          return cachedResponse;
         });
 
       return cachedResponse || fetchPromise;
@@ -123,4 +141,3 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
-

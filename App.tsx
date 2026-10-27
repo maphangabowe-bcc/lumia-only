@@ -10,14 +10,13 @@ import { auth, db, handleFirestoreError, OperationType } from './services/fireba
 import { networkManager, NetworkStatus } from './services/networkService';
 import { trialService, TrialInfo } from './services/trialService';
 
-// Lazy load heavy and non-critical components to ensure fast initial page load even on slow networks
-const EntryList = lazy(() => import('./components/EntryList'));
-const EntryEditor = lazy(() => import('./components/EntryEditor'));
-const WeeklyInsight = lazy(() => import('./components/WeeklyInsight'));
-const MoodChart = lazy(() => import('./components/MoodChart'));
-const DailyAffirmation = lazy(() => import('./components/DailyAffirmation'));
-const ShareView = lazy(() => import('./components/ShareView'));
-const SharedEntryView = lazy(() => import('./components/SharedEntryView'));
+import EntryList from './components/EntryList';
+import EntryEditor from './components/EntryEditor';
+import WeeklyInsight from './components/WeeklyInsight';
+import MoodChart from './components/MoodChart';
+import DailyAffirmation from './components/DailyAffirmation';
+import ShareView from './components/ShareView';
+import SharedEntryView from './components/SharedEntryView';
 import BackupModal from './components/BackupModal';
 import PremiumModal from './components/PremiumModal';
 import { InviteModal } from './components/InviteModal';
