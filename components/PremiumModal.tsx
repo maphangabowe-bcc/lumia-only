@@ -186,24 +186,7 @@ Thank you for supporting Lumina Diary!`;
               {/* Scrollable Checkout Content */}
               <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5">
                 
-                {/* Session Security Banner: Never logout while at checkout */}
-                <div className="px-3.5 py-2.5 rounded-2xl bg-indigo-50/80 border border-indigo-100 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 text-xs shadow-xs">
-                      <i className="fa-solid fa-user-lock"></i>
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
-                        <span>Protected Checkout Session</span>
-                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded">Active</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
-                        Inactivity auto-logout is paused on this page so your checkout is never interrupted.
-                      </div>
-                    </div>
-                  </div>
-                  <i className="fa-solid fa-shield-check text-emerald-500 text-base shrink-0"></i>
-                </div>
+
 
                 {/* Active Membership Banner (if already paid) */}
                 {trialInfo && trialInfo.isPaid && (
