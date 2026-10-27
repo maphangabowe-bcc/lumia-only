@@ -4,24 +4,36 @@ import { nanoid } from "nanoid";
 
 import fs from "fs";
 
-// Load environment variables from .env with override so user-configured live keys take precedence
-try {
-  if (fs.existsSync(".env")) {
-    const envConfig = fs.readFileSync(".env", "utf8");
-    for (const line of envConfig.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx !== -1) {
-        const key = trimmed.slice(0, eqIdx).trim();
-        const val = trimmed.slice(eqIdx + 1).trim();
-        process.env[key] = val;
+// Load environment variables dynamically from .env so live key changes are reflected immediately
+function getEnv(key: string): string {
+  try {
+    if (fs.existsSync(".env")) {
+      const envConfig = fs.readFileSync(".env", "utf8");
+      for (const line of envConfig.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx !== -1) {
+          const k = trimmed.slice(0, eqIdx).trim();
+          const v = trimmed.slice(eqIdx + 1).trim();
+          if (k === key && v) {
+            process.env[key] = v;
+            return v;
+          }
+        }
       }
     }
+  } catch (e) {
+    // Ignore fallback
   }
-} catch (e) {
-  // Ignore fallback
+  return process.env[key] || "";
 }
+
+// Initial env load
+getEnv("PAYPAL_WEBHOOK_ID");
+getEnv("PAYPAL_CLIENT_ID");
+getEnv("PAYPAL_CLIENT_SECRET");
+getEnv("GEMINI_API_KEY");
 
 async function startServer() {
   const app = express();
@@ -509,6 +521,164 @@ Guidelines:
   });
 
   // ==========================================
+  // USER TIER & GOOGLE AI STUDIO CREDITS STORE
+  // ==========================================
+
+  interface UserTierRecord {
+    userId: string;
+    tier: 'Free' | 'Pro';
+    aiCredits: number;
+    isPaid: boolean;
+    grantedAt: string;
+    source: string;
+    payerEmail?: string;
+  }
+
+  const userTiers = new Map<string, UserTierRecord>();
+
+  // Default initial tier record
+  userTiers.set('default_user', {
+    userId: 'default_user',
+    tier: 'Free',
+    aiCredits: 10,
+    isPaid: false,
+    grantedAt: new Date().toISOString(),
+    source: 'system_default'
+  });
+
+  /**
+   * Grants Lumina Pro access and AI Studio credits/prompt allocations to user
+   */
+  function grantAICredits(userId: string, source: string = 'paypal-webhook', email?: string): UserTierRecord {
+    const cleanId = (userId || email || 'default_user').trim().toLowerCase();
+    
+    const record: UserTierRecord = {
+      userId: cleanId,
+      tier: 'Pro',
+      aiCredits: 999999, // Lumina Pro allocation (unlimited AI credits)
+      isPaid: true,
+      grantedAt: new Date().toISOString(),
+      source,
+      payerEmail: email || (cleanId.includes('@') ? cleanId : undefined)
+    };
+
+    userTiers.set(cleanId, record);
+    // Also map 'default_user' and email keys for seamless lookups
+    if (email) {
+      userTiers.set(email.trim().toLowerCase(), record);
+    }
+    userTiers.set('default_user', record);
+
+    console.log(`[AI Studio Tier Sync] Granted Pro status and AI allocations to user: ${cleanId} (Source: ${source})`);
+    return record;
+  }
+
+  // Get User Tier Status Endpoint
+  app.get("/api/user/status", (req, res) => {
+    const rawUser = (req.query.userId || req.headers['x-user-id'] || req.query.email || 'default_user') as string;
+    const cleanId = rawUser.trim().toLowerCase();
+
+    let record = userTiers.get(cleanId) || userTiers.get('default_user');
+    
+    if (!record) {
+      record = {
+        userId: cleanId,
+        tier: 'Free',
+        aiCredits: 10,
+        isPaid: false,
+        grantedAt: new Date().toISOString(),
+        source: 'new_session'
+      };
+    }
+
+    res.json({
+      userId: record.userId,
+      tier: record.tier,
+      isPro: record.tier === 'Pro',
+      aiCredits: record.aiCredits,
+      isPaid: record.isPaid,
+      grantedAt: record.grantedAt,
+      source: record.source,
+      geminiAllocations: {
+        dailyPrompts: record.tier === 'Pro' ? 'Unlimited' : 10,
+        modelTier: record.tier === 'Pro' ? 'Gemini 3.7 Flash Pro' : 'Standard Flash',
+        priorityProcessing: record.tier === 'Pro'
+      }
+    });
+  });
+
+  // ==========================================
+  // PAYPAL WEBHOOK LISTENER & EVENT HANDLER
+  // ==========================================
+
+  app.post('/api/paypal-webhook', async (req, res) => {
+    res.status(200).send('OK');
+
+    try {
+      const event = req.body || {};
+      const webhookId = getEnv('PAYPAL_WEBHOOK_ID');
+
+      if (webhookId) {
+        const transmissionId = req.headers['paypal-transmission-id'] as string;
+        const transmissionTime = req.headers['paypal-transmission-time'] as string;
+        const certUrl = req.headers['paypal-cert-url'] as string;
+        const authAlgo = req.headers['paypal-sig-algo'] as string;
+        const transmissionSig = req.headers['paypal-transmission-sig'] as string;
+
+        if (transmissionId && transmissionSig) {
+          const paypalAuth = await getPayPalAccessToken();
+          if (paypalAuth) {
+            try {
+              const verifyRes = await fetch(`${paypalAuth.baseUrl}/v1/notifications/verify-webhook-signature`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${paypalAuth.token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  transmission_id: transmissionId,
+                  transmission_time: transmissionTime,
+                  cert_url: certUrl,
+                  auth_algo: authAlgo,
+                  transmission_sig: transmissionSig,
+                  webhook_id: webhookId,
+                  webhook_event: event
+                })
+              });
+
+              if (verifyRes.ok) {
+                const verifyData = await verifyRes.json();
+                console.log(`[PayPal Webhook Verification] Signature Status: ${verifyData.verification_status}`);
+              }
+            } catch (vErr) {
+              console.warn('[PayPal Webhook Signature Check Notice]', vErr);
+            }
+          }
+        }
+      }
+
+      const eventType = event.event_type;
+
+      if (
+        eventType === 'PAYMENT.CAPTURE.COMPLETED' ||
+        eventType === 'CHECKOUT.ORDER.APPROVED' ||
+        eventType === 'PAYMENT.SALE.COMPLETED' ||
+        eventType === 'BILLING.SUBSCRIPTION.ACTIVATED' ||
+        eventType === 'PAYMENT.ORDER.CREATED'
+      ) {
+        const resource = event.resource || {};
+        const customId = resource.custom_id || resource.purchase_units?.[0]?.custom_id;
+        const payerEmail = resource.payer?.email_address || resource.subscriber?.email_address || resource.amount?.payee?.email_address;
+        const userId = customId || payerEmail || resource.id || 'default_user';
+
+        grantAICredits(userId, `paypal-webhook:${eventType}`, payerEmail);
+      }
+    } catch (err) {
+      console.error('[PayPal Webhook Processing Error]:', err);
+    }
+  });
+
+  // ==========================================
   // PAYPAL PAYMENT GATEWAY API ROUTES
   // ==========================================
 
@@ -530,9 +700,9 @@ Guidelines:
 
   // PayPal Server-Side Credentials & OAuth Token Helper (Strictly Live Production)
   async function getPayPalAccessToken(): Promise<{ token: string; baseUrl: string } | null> {
-    const clientId = process.env.PAYPAL_CLIENT_ID || process.env.VITE_PAYPAL_CLIENT_ID;
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-    const mode = process.env.PAYPAL_MODE || 'live';
+    const clientId = getEnv('PAYPAL_CLIENT_ID') || getEnv('VITE_PAYPAL_CLIENT_ID');
+    const clientSecret = getEnv('PAYPAL_CLIENT_SECRET');
+    const mode = getEnv('PAYPAL_MODE') || 'live';
 
     if (!clientId || !clientSecret || clientId === 'test') {
       return null;
@@ -578,11 +748,12 @@ Guidelines:
   // 2. Create PayPal Order
   app.post("/api/paypal/create-order", async (req, res) => {
     try {
-      const { amount = 2.50, currency = "USD", billingType = "manual", customerEmail } = req.body;
+      const { amount = 2.50, currency = "USD", billingType = "manual", customerEmail, userId } = req.body;
       const paypalAuth = await getPayPalAccessToken();
       const numAmount = Number(amount).toFixed(2);
       const strCurrency = String(currency).toUpperCase();
       const planTitle = billingType === 'auto' ? 'Annual Subscription ($2.50/yr)' : '1-Year Digital Pass ($2.50)';
+      const passUserId = userId || customerEmail || 'default_user';
 
       if (paypalAuth) {
         try {
@@ -601,7 +772,7 @@ Guidelines:
               },
               purchase_units: [{
                 description: `Lumina Diary Pro - Digital Product (${planTitle})`,
-                custom_id: 'LUMINA_DIGITAL_PRO',
+                custom_id: passUserId,
                 soft_descriptor: 'LUMINA PRO',
                 amount: {
                   currency_code: strCurrency,
@@ -665,7 +836,7 @@ Guidelines:
   // 3. Capture PayPal Order
   app.post("/api/paypal/capture-order", async (req, res) => {
     try {
-      const { orderId, details, billingType = "manual", customerEmail, amount = 2.50, currency = "USD" } = req.body;
+      const { orderId, details, billingType = "manual", customerEmail, amount = 2.50, currency = "USD", userId } = req.body;
 
       if (!orderId) {
         return res.status(400).json({ success: false, message: "PayPal Order ID is required." });
@@ -727,6 +898,10 @@ Guidelines:
 
       paypalOrders.set(orderId, orderRecord);
 
+      // Instantly grant Lumina Pro tier & AI Studio prompt allocations upon successful transaction capture
+      const activeUserId = userId || customerEmail || payerEmail || 'default_user';
+      grantAICredits(activeUserId, 'paypal-capture-direct', payerEmail);
+
       res.json({
         success: true,
         status: "COMPLETED",
@@ -738,7 +913,9 @@ Guidelines:
         amount: orderRecord.amount,
         currency: orderRecord.currency,
         timestamp: orderRecord.timestamp,
-        message: "PayPal payment transaction captured and verified successfully."
+        userTier: "Pro",
+        aiCredits: 999999,
+        message: "PayPal payment transaction captured and verified successfully. Granted Lumina Pro features & AI Studio credits."
       });
     } catch (err: any) {
       console.error("PayPal Capture Order Error:", err);
