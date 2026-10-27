@@ -323,6 +323,24 @@ export const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({
                 </button>
               </form>
 
+              {/* 15-Minute Inactivity Protection Info */}
+              <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 text-sm border border-indigo-100">
+                    <i className="fa-solid fa-shield-halved"></i>
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-800 text-xs">15-Minute Inactivity Lock</h5>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Your session stays active while you are busy writing or browsing. Locks only after 15 minutes of zero activity.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                  15 min
+                </span>
+              </div>
+
               {/* Membership & Subscription Status */}
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3">
                 <div className="flex items-start justify-between gap-2">

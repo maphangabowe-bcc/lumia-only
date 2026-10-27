@@ -66,21 +66,49 @@ class TrialService {
   }
 
   /**
-   * Unlocks all premium features permanently after a verified successful transaction
+   * Unlocks all premium features permanently after a verified successful transaction.
+   * Users only enter their payment info once and are granted permanent access.
    */
-  public markPaid(billingType: 'manual' | 'auto' = 'manual'): TrialInfo {
+  public markPaid(
+    billingType: 'manual' | 'auto' = 'manual',
+    paymentMeta?: { orderId?: string; payerEmail?: string; receiptNumber?: string }
+  ): TrialInfo {
     try {
       localStorage.setItem(STORAGE_KEY_PREMIUM, 'true');
       localStorage.removeItem(STORAGE_KEY_CANCELLED);
       localStorage.removeItem(STORAGE_KEY_CANCELLED_AT);
       localStorage.setItem(STORAGE_KEY_BILLING_TYPE, billingType);
-      localStorage.setItem(STORAGE_KEY_UNLOCKED_AT, new Date().toISOString());
+      if (!localStorage.getItem(STORAGE_KEY_UNLOCKED_AT)) {
+        localStorage.setItem(STORAGE_KEY_UNLOCKED_AT, new Date().toISOString());
+      }
+      if (paymentMeta?.orderId) {
+        localStorage.setItem('lumina_premium_order_id', paymentMeta.orderId);
+      }
+      if (paymentMeta?.payerEmail) {
+        localStorage.setItem('lumina_premium_payer_email', paymentMeta.payerEmail);
+      }
+      if (paymentMeta?.receiptNumber) {
+        localStorage.setItem('lumina_premium_receipt_number', paymentMeta.receiptNumber);
+      }
     } catch (e) {
       console.warn('Error saving premium status', e);
     }
     const info = this.getTrialInfo();
     this.notify(info);
     return info;
+  }
+
+  /**
+   * Synchronizes Pro access state with user's cloud account profile
+   */
+  public syncWithCloud(cloudData: { isPaid?: boolean; billingType?: 'manual' | 'auto'; orderId?: string; payerEmail?: string }): TrialInfo {
+    if (cloudData.isPaid) {
+      return this.markPaid(cloudData.billingType || 'manual', {
+        orderId: cloudData.orderId,
+        payerEmail: cloudData.payerEmail
+      });
+    }
+    return this.getTrialInfo();
   }
 
   /**

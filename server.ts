@@ -674,7 +674,8 @@ Guidelines:
       let capturedDetails = details;
       const paypalAuth = await getPayPalAccessToken();
 
-      if (paypalAuth && orderId && !orderId.startsWith("PAYPAL-")) {
+      // If not already completed by client SDK, attempt server capture
+      if (paypalAuth && orderId && !orderId.startsWith("PAYPAL-") && capturedDetails?.status !== 'COMPLETED') {
         try {
           const captureRes = await fetch(`${paypalAuth.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
             method: 'POST',
@@ -685,6 +686,18 @@ Guidelines:
           });
           if (captureRes.ok) {
             capturedDetails = await captureRes.json();
+          } else if (captureRes.status === 422) {
+            // Order was already captured on client side, verify order details
+            const checkRes = await fetch(`${paypalAuth.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${paypalAuth.token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            if (checkRes.ok) {
+              capturedDetails = await checkRes.json();
+            }
           }
         } catch (capErr) {
           console.warn("PayPal capture call fallback:", capErr);

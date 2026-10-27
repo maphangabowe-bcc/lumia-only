@@ -5,7 +5,7 @@ import Sidebar from './components/Sidebar';
 import { LockScreen } from './components/LockScreen';
 import { PrivacySettingsModal } from './components/PrivacySettingsModal';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
-import { collection, getDocs, doc, setDoc, deleteDoc, query } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, query, getDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './services/firebase';
 import { networkManager, NetworkStatus } from './services/networkService';
 import { trialService, TrialInfo } from './services/trialService';
@@ -102,8 +102,20 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sharedEntryToView, setSharedEntryToView] = useState<DiaryEntry | null>(null);
   const [showBackupModal, setShowBackupModal] = useState(false);
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  // 15-Minute Inactivity Session Tracking
+  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    try {
+      const isSavedUnlocked = localStorage.getItem('lumina_session_unlocked') === 'true';
+      const lastActive = parseInt(localStorage.getItem('lumina_last_activity_at') || '0', 10);
+      const isRecent = Date.now() - lastActive < 15 * 60 * 1000;
+      return isSavedUnlocked && isRecent;
+    } catch {
+      return false;
+    }
+  });
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [privacyModalTab, setPrivacyModalTab] = useState<'security' | 'policy' | 'network'>('security');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -193,24 +205,116 @@ const App: React.FC = () => {
     }
   }, [toast]);
 
+  // 15-Minute Strict Inactivity Lock Manager
+  // Users stay active and unlocked as long as they are busy in the app.
+  // The app will only lock after 15 consecutive minutes of zero activity.
   useEffect(() => {
     if (!isUnlocked) return;
 
-    const resetTimer = () => {
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = setTimeout(() => {
+    lastActivityRef.current = Date.now();
+    try {
+      localStorage.setItem('lumina_session_unlocked', 'true');
+      localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+    } catch (e) {
+      // Ignore storage errors
+    }
+
+    const checkAndScheduleTimeout = () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+
+      const elapsed = Date.now() - lastActivityRef.current;
+      const remaining = INACTIVITY_TIMEOUT_MS - elapsed;
+
+      if (remaining <= 0) {
         setIsUnlocked(false);
-      }, 5 * 60 * 1000); // 5 minutes
+        try {
+          localStorage.removeItem('lumina_session_unlocked');
+        } catch {}
+        triggerToast('Session locked after 15 minutes of inactivity for your privacy.', 'info');
+      } else {
+        inactivityTimerRef.current = setTimeout(() => {
+          setIsUnlocked(false);
+          try {
+            localStorage.removeItem('lumina_session_unlocked');
+          } catch {}
+          triggerToast('Session locked after 15 minutes of inactivity for your privacy.', 'info');
+        }, remaining);
+      }
     };
 
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    events.forEach(event => window.addEventListener(event, resetTimer));
+    let throttleTimeout: NodeJS.Timeout | null = null;
+    const handleUserActivity = () => {
+      lastActivityRef.current = Date.now();
+      try {
+        localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+      } catch {}
 
-    resetTimer();
+      if (!throttleTimeout) {
+        throttleTimeout = setTimeout(() => {
+          throttleTimeout = null;
+          checkAndScheduleTimeout();
+        }, 1500); // Throttles rescheduling to once every 1.5 seconds
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const storedLast = localStorage.getItem('lumina_last_activity_at');
+        const lastTime = storedLast ? parseInt(storedLast, 10) : lastActivityRef.current;
+        const elapsed = Date.now() - (isNaN(lastTime) ? lastActivityRef.current : lastTime);
+
+        if (elapsed >= INACTIVITY_TIMEOUT_MS) {
+          setIsUnlocked(false);
+          try {
+            localStorage.removeItem('lumina_session_unlocked');
+          } catch {}
+          triggerToast('Session locked after 15 minutes of inactivity.', 'info');
+        } else {
+          lastActivityRef.current = Date.now();
+          checkAndScheduleTimeout();
+        }
+      }
+    };
+
+    // Track every user action (typing, clicking, scrolling, touch, focus, pointer)
+    const activityEvents = [
+      'mousemove',
+      'mousedown',
+      'mouseup',
+      'click',
+      'dblclick',
+      'keydown',
+      'keyup',
+      'keypress',
+      'input',
+      'change',
+      'scroll',
+      'wheel',
+      'touchstart',
+      'touchend',
+      'touchmove',
+      'pointerdown',
+      'pointermove',
+      'pointerup',
+      'focus'
+    ];
+
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, handleUserActivity, { passive: true });
+    });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    checkAndScheduleTimeout();
 
     return () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      events.forEach(event => window.removeEventListener(event, resetTimer));
+      if (throttleTimeout) clearTimeout(throttleTimeout);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, handleUserActivity);
+      });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isUnlocked]);
 
@@ -222,6 +326,35 @@ const App: React.FC = () => {
         setAuthLoading(true);
         const entriesPath = `users/${user.uid}/entries`;
         try {
+          // Check user cloud profile for permanent Pro membership
+          try {
+            const userProfileRef = doc(db, 'users', user.uid);
+            const profileSnap = await getDoc(userProfileRef);
+            if (profileSnap.exists()) {
+              const profileData = profileSnap.data();
+              if (profileData?.isPaid || profileData?.hasPremiumAccess) {
+                trialService.syncWithCloud({
+                  isPaid: true,
+                  billingType: profileData.billingType || 'manual',
+                  orderId: profileData.orderId,
+                  payerEmail: profileData.payerEmail
+                });
+              }
+            } else if (trialService.getTrialInfo().isPaid) {
+              // User has completed payment, record permanently to newly created cloud account
+              await setDoc(userProfileRef, {
+                email: user.email || '',
+                isPaid: true,
+                isPremium: true,
+                hasPremiumAccess: true,
+                billingType: trialService.getTrialInfo().billingType || 'manual',
+                unlockedAt: new Date().toISOString()
+              }, { merge: true });
+            }
+          } catch (profileErr) {
+            console.warn('Profile membership check warning:', profileErr);
+          }
+
           const q = query(collection(db, entriesPath));
           const querySnapshot = await getDocs(q);
           const fbEntries: DiaryEntry[] = [];
@@ -311,10 +444,10 @@ const App: React.FC = () => {
 
 
 
-  const handleUnlockPremium = (billingType: 'manual' | 'auto' = 'manual') => {
+  const handleUnlockPremium = async (billingType: 'manual' | 'auto' = 'manual') => {
     trialService.markPaid(billingType);
     setShowPremiumWelcome(true);
-    triggerToast('🎉 Lumina Premium Unlocked! Unlimited cloud diary activated.', 'success');
+    triggerToast('🎉 Lumina Pro Unlocked! Unlimited cloud sanctuary activated.', 'success');
     const expiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     if (billingType === 'auto') {
       localStorage.setItem('lumina_premium_renews_at', expiry);
@@ -323,6 +456,24 @@ const App: React.FC = () => {
       localStorage.setItem('lumina_premium_expires_at', expiry);
       localStorage.removeItem('lumina_premium_renews_at');
     }
+
+    // Persist permanently to cloud user profile so user never has to enter payment info again
+    if (currentUser) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.uid), {
+          email: currentUser.email || '',
+          isPaid: true,
+          isPremium: true,
+          hasPremiumAccess: true,
+          billingType,
+          unlockedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (cloudErr) {
+        console.warn('Could not persist Pro status to cloud profile:', cloudErr);
+      }
+    }
+
     setShowPremiumModal(false);
   };
 
@@ -498,7 +649,13 @@ const App: React.FC = () => {
   if (!isUnlocked) {
     return (
       <div className="min-h-screen w-full bg-slate-50 overflow-y-auto relative">
-        <LockScreen onUnlock={() => setIsUnlocked(true)} />
+        <LockScreen onUnlock={() => {
+          try {
+            localStorage.setItem('lumina_session_unlocked', 'true');
+            localStorage.setItem('lumina_last_activity_at', Date.now().toString());
+          } catch {}
+          setIsUnlocked(true);
+        }} />
         {toast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 z-[110] animate-in fade-in slide-in-from-top-3 md:slide-in-from-right-3 duration-300">
             <div className={`px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 border text-sm font-semibold ${
@@ -541,6 +698,9 @@ const App: React.FC = () => {
         onOpenInvite={() => setShowInviteModal(true)}
         onLock={() => {
           auth.signOut();
+          try {
+            localStorage.removeItem('lumina_session_unlocked');
+          } catch {}
           setIsUnlocked(false);
         }}
         isMobileOpen={isMobileMenuOpen}
