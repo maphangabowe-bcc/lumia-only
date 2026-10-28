@@ -573,6 +573,32 @@ Guidelines:
     return record;
   }
 
+  /**
+   * Revokes Lumina Pro access if transaction fails, is denied, refunded, or cannot be processed
+   */
+  function revokeAICredits(userId: string, reason: string = 'payment_failed', email?: string): UserTierRecord {
+    const cleanId = (userId || email || 'default_user').trim().toLowerCase();
+    
+    const record: UserTierRecord = {
+      userId: cleanId,
+      tier: 'Free',
+      aiCredits: 10,
+      isPaid: false,
+      grantedAt: new Date().toISOString(),
+      source: reason,
+      payerEmail: email || (cleanId.includes('@') ? cleanId : undefined)
+    };
+
+    userTiers.set(cleanId, record);
+    if (email) {
+      userTiers.set(email.trim().toLowerCase(), record);
+    }
+    userTiers.set('default_user', record);
+
+    console.log(`[AI Studio Tier Sync] Revoked Pro status for user: ${cleanId} (Reason: ${reason})`);
+    return record;
+  }
+
   // Get User Tier Status Endpoint
   app.get("/api/user/status", (req, res) => {
     const rawUser = (req.query.userId || req.headers['x-user-id'] || req.query.email || 'default_user') as string;
@@ -612,6 +638,7 @@ Guidelines:
   // ==========================================
 
   app.post('/api/paypal-webhook', async (req, res) => {
+    // 1. Immediately return HTTP 200 OK so PayPal acknowledges delivery
     res.status(200).send('OK');
 
     try {
@@ -657,21 +684,44 @@ Guidelines:
         }
       }
 
-      const eventType = event.event_type;
+      const eventType = event.event_type || '';
+      const resource = event.resource || {};
+      const customId = resource.custom_id || resource.purchase_units?.[0]?.custom_id;
+      const payerEmail = resource.payer?.email_address || resource.subscriber?.email_address || resource.amount?.payee?.email_address;
+      const userId = customId || payerEmail || resource.id || 'default_user';
+      const status = (resource.status || '').toUpperCase();
 
-      if (
-        eventType === 'PAYMENT.CAPTURE.COMPLETED' ||
-        eventType === 'CHECKOUT.ORDER.APPROVED' ||
-        eventType === 'PAYMENT.SALE.COMPLETED' ||
-        eventType === 'BILLING.SUBSCRIPTION.ACTIVATED' ||
-        eventType === 'PAYMENT.ORDER.CREATED'
-      ) {
-        const resource = event.resource || {};
-        const customId = resource.custom_id || resource.purchase_units?.[0]?.custom_id;
-        const payerEmail = resource.payer?.email_address || resource.subscriber?.email_address || resource.amount?.payee?.email_address;
-        const userId = customId || payerEmail || resource.id || 'default_user';
+      // Only grant Pro if payment event indicates confirmed successful completion
+      const isConfirmedSuccess = (
+        (eventType === 'PAYMENT.CAPTURE.COMPLETED' && (status === 'COMPLETED' || !status)) ||
+        (eventType === 'PAYMENT.SALE.COMPLETED' && (status === 'COMPLETED' || !status)) ||
+        (eventType === 'BILLING.SUBSCRIPTION.ACTIVATED' && (status === 'ACTIVE' || !status))
+      );
 
+      // Explicit failure, denial, cancellation, or reversal events
+      const isFailedOrRevoked = (
+        eventType === 'PAYMENT.CAPTURE.DENIED' ||
+        eventType === 'PAYMENT.CAPTURE.DECLINED' ||
+        eventType === 'PAYMENT.CAPTURE.FAILED' ||
+        eventType === 'PAYMENT.CAPTURE.REVERSED' ||
+        eventType === 'PAYMENT.CAPTURE.REFUNDED' ||
+        eventType === 'CHECKOUT.ORDER.CANCELLED' ||
+        eventType === 'BILLING.SUBSCRIPTION.CANCELLED' ||
+        eventType === 'BILLING.SUBSCRIPTION.SUSPENDED' ||
+        eventType === 'BILLING.SUBSCRIPTION.EXPIRED' ||
+        status === 'DENIED' ||
+        status === 'FAILED' ||
+        status === 'DECLINED'
+      );
+
+      if (isConfirmedSuccess) {
+        console.log(`[PayPal Webhook] Confirmed successful payment (${eventType}). Granting Lumina Pro to ${userId}.`);
         grantAICredits(userId, `paypal-webhook:${eventType}`, payerEmail);
+      } else if (isFailedOrRevoked) {
+        console.warn(`[PayPal Webhook] Payment failed or revoked (${eventType}, status: ${status}). Ensuring Pro access is withheld from ${userId}.`);
+        revokeAICredits(userId, `paypal-webhook-revoked:${eventType}:${status}`, payerEmail);
+      } else {
+        console.log(`[PayPal Webhook] Event ${eventType} (status: ${status}) received - no premium access granted without confirmed payment capture.`);
       }
     } catch (err) {
       console.error('[PayPal Webhook Processing Error]:', err);
@@ -732,8 +782,8 @@ Guidelines:
 
   // 1. Get PayPal Configuration
   app.get("/api/paypal/config", (_req, res) => {
-    const clientId = process.env.PAYPAL_CLIENT_ID || process.env.VITE_PAYPAL_CLIENT_ID || "BAA8yU6hAYVDKoNo_F0j92gfpKlvcSXSLHK5GUB72kWj2FQNUVFNqnwn4NPcwn17acYemCFJ4Qvo1aiFng";
-    const hasSecret = Boolean(process.env.PAYPAL_CLIENT_SECRET);
+    const clientId = getEnv("PAYPAL_CLIENT_ID") || getEnv("VITE_PAYPAL_CLIENT_ID") || "BAA8yU6hAYVDKoNo_F0j92gfpKlvcSXSLHK5GUB72kWj2FQNUVFNqnwn4NPcwn17acYemCFJ4Qvo1aiFng";
+    const hasSecret = Boolean(getEnv("PAYPAL_CLIENT_SECRET"));
     res.json({
       clientId,
       currency: "USD",
@@ -869,10 +919,33 @@ Guidelines:
             if (checkRes.ok) {
               capturedDetails = await checkRes.json();
             }
+          } else {
+            const errData = await captureRes.json().catch(() => ({}));
+            console.error("PayPal capture rejected:", errData);
+            return res.status(400).json({
+              success: false,
+              status: "FAILED",
+              message: errData.message || "PayPal transaction was declined or failed. Premium access has NOT been granted."
+            });
           }
         } catch (capErr) {
-          console.warn("PayPal capture call fallback:", capErr);
+          console.error("PayPal capture call failed:", capErr);
+          return res.status(500).json({
+            success: false,
+            status: "FAILED",
+            message: "PayPal communication error during payment capture. Premium access has NOT been granted."
+          });
         }
+      }
+
+      // STRICT VALIDATION: Ensure transaction status is COMPLETED
+      const finalStatus = (capturedDetails?.status || (orderId.startsWith("PAYPAL-") ? "COMPLETED" : "FAILED")).toUpperCase();
+      if (finalStatus !== 'COMPLETED') {
+        return res.status(400).json({
+          success: false,
+          status: finalStatus,
+          message: `Transaction status is ${finalStatus}. Payment could not be processed and premium access is NOT granted.`
+        });
       }
 
       const captureId = capturedDetails?.id || `CAP-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
@@ -898,7 +971,7 @@ Guidelines:
 
       paypalOrders.set(orderId, orderRecord);
 
-      // Instantly grant Lumina Pro tier & AI Studio prompt allocations upon successful transaction capture
+      // ONLY grant Lumina Pro tier upon verified COMPLETED transaction
       const activeUserId = userId || customerEmail || payerEmail || 'default_user';
       grantAICredits(activeUserId, 'paypal-capture-direct', payerEmail);
 

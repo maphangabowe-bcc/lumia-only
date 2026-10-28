@@ -493,66 +493,53 @@ Thank you for supporting Lumina Diary!`;
                                 try {
                                   details = await actions.order.capture();
                                 } catch (captureErr) {
-                                  console.warn('Client SDK capture warning, proceeding to verify:', captureErr);
+                                  console.warn('Client SDK capture notice, verifying with server:', captureErr);
                                 }
                               }
 
-                              const orderId = data.orderID || details?.id || `PAYPAL-${Date.now()}`;
-                              const payerEmail = details?.payer?.email_address || receiptEmail;
-                              const payerName = details?.payer?.name?.given_name 
-                                ? `${details.payer.name.given_name} ${details.payer.name.surname || ''}`.trim() 
-                                : (receiptEmail ? receiptEmail.split('@')[0] : 'PayPal Customer');
-
-                              // 1. Immediately record Pro access so user is unlocked once and for all
-                              trialService.markPaid(billingType, {
-                                orderId,
-                                payerEmail,
-                                receiptNumber: `PAYPAL-RCPT-${orderId.slice(-6)}`
-                              });
-
-                              // 2. Capture and record on backend
-                              let captureResult: PayPalCaptureResult;
-                              try {
-                                captureResult = await paypalService.captureOrder({
-                                  orderId,
-                                  details,
-                                  billingType,
-                                  customerEmail: receiptEmail,
-                                  amount: activeCurrency.amount,
-                                  currency: activeCurrency.code
-                                });
-                              } catch (backendErr) {
-                                console.warn('Backend capture sync warning:', backendErr);
-                                captureResult = {
-                                  success: true,
-                                  status: 'COMPLETED',
-                                  orderId,
-                                  captureId: details?.purchase_units?.[0]?.payments?.captures?.[0]?.id || `CAP-${Date.now()}`,
-                                  receiptNumber: `PAYPAL-RCPT-${Date.now().toString().slice(-6)}`,
-                                  payerName,
-                                  payerEmail,
-                                  amount: activeCurrency.amount,
-                                  currency: activeCurrency.code,
-                                  timestamp: new Date().toISOString()
-                                };
+                              const orderId = data.orderID || details?.id;
+                              if (!orderId) {
+                                throw new Error('PayPal did not return a valid transaction reference. Premium features were not granted.');
                               }
 
-                              // 3. Grant full Pro access and switch to success view
+                              // Capture and verify order with server
+                              const captureResult = await paypalService.captureOrder({
+                                orderId,
+                                details,
+                                billingType,
+                                customerEmail: receiptEmail,
+                                amount: activeCurrency.amount,
+                                currency: activeCurrency.code
+                              });
+
+                              // STRICT CHECK: Only grant premium access if transaction status is verified as COMPLETED
+                              if (!captureResult || !captureResult.success || captureResult.status !== 'COMPLETED') {
+                                throw new Error('Transaction could not be completed or was declined by PayPal. Premium access has NOT been granted.');
+                              }
+
+                              // Grant Pro access ONLY after confirmed completion
+                              trialService.markPaid(billingType, {
+                                orderId: captureResult.orderId,
+                                payerEmail: captureResult.payerEmail,
+                                receiptNumber: captureResult.receiptNumber
+                              });
+
                               handlePayPalSuccess(captureResult);
                             } catch (err: any) {
                               console.error('PayPal onApprove error:', err);
-                              const msg = err.message || 'Payment capture failed. Please check your account or try again.';
+                              // Explicitly ensure Pro access is NOT granted
+                              const msg = err.message || 'Payment transaction failed or could not be processed. Premium features have NOT been granted.';
                               setErrorMessage(msg);
                             } finally {
                               setIsProcessing(false);
                             }
                           }}
                           onCancel={() => {
-                            setErrorMessage('PayPal checkout session was cancelled.');
+                            setErrorMessage('PayPal payment session was cancelled. Premium features were NOT granted.');
                           }}
                           onError={(err: any) => {
                             console.warn('PayPalButtons component onError:', err);
-                            setErrorMessage('PayPal was temporarily unable to complete the payment window. Please check your connection and try again.');
+                            setErrorMessage('PayPal was unable to process this payment transaction. Premium features were NOT granted.');
                           }}
                         />
                       </PayPalScriptProvider>
